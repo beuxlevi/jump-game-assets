@@ -42,9 +42,9 @@
 
     .platform {
       position: absolute;
-      width: 300px; /* Increased for better proportion */
-      height: 100px; /* Adjusted for 3:1 aspect ratio (600x200px image) */
-      background-size: 100% 100%; /* Stretch to fit container */
+      width: 250px; /* Reduced for better proportion */
+      height: 83px; /* Adjusted for 3:1 aspect ratio (600x200px image) */
+      background-size: contain; /* Preserve aspect ratio */
       background-repeat: no-repeat;
       background-position: center;
       z-index: 5;
@@ -94,19 +94,19 @@
       platform.className = 'platform';
       platform.style.bottom = bottom + 'px';
       platform.style.left = left + 'px';
-      platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%60600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
+      platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // Initial 0.5-1.5
-      return { bottom, left, width: 300, height: 100, element: platform, passed: false, moving, speed, icy, slow }; // Updated width and height
+      return { bottom, left, width: 250, height: 83, element: platform, passed: false, moving, speed, icy, slow }; // Updated width and height
     }
 
     let platforms = [
-      createInitialPlatform(50, 50),
-      createInitialPlatform(150, 100),
-      createInitialPlatform(250, 0),
-      createInitialPlatform(350, 100),
-      createInitialPlatform(450, 0),
-      createInitialPlatform(550, 100)
+      createInitialPlatform(50, 75),
+      createInitialPlatform(150, 25),
+      createInitialPlatform(250, 75),
+      createInitialPlatform(350, 25),
+      createInitialPlatform(450, 75),
+      createInitialPlatform(550, 25)
     ];
 
     // Game variables
@@ -186,10 +186,10 @@
         consecutiveBlues = 0;
         consecutiveBrowns = 0;
       } else {
-        const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + 300); // Adjusted for new platform width
-        const maxLeft = Math.min(gameWidth - 300, highestPlatform.left + maxJumpDistance - 300); // Adjusted for new platform width
+        const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + 250); // Adjusted for new platform width
+        const maxLeft = Math.min(gameWidth - 250, highestPlatform.left + maxJumpDistance - 250); // Adjusted for new platform width
         newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
-        newWidth = 300;
+        newWidth = 250;
         const movingChance = Math.min(0 + stage * 0.2, 0.8);
         moving = Math.random() < movingChance;
 
@@ -266,7 +266,7 @@
       newPlatform.style.width = newWidth + 'px';
       newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 100, element: newPlatform, passed: false, moving, speed, icy, slow };
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: 83, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
     // Update platforms and score
@@ -426,14 +426,14 @@
           overlapsX &&
           velocityY <= 0 &&
           prevY >= platformTop &&
-          characterY <= platformTop
+          characterY < platformTop + 5 // Allow a small buffer for landing
         ) {
-          characterY = platformTop - 20; // Offset to align feet
+          characterY = platformTop - 15; // Adjusted offset to align feet
           velocityY = 0;
           onGround = true;
           // Maintain character on platform if already on ground
           if (onGround && characterY + charHeight > platformTop) {
-            characterY = platformTop - 20;
+            characterY = platformTop - 15;
           }
           if (platform.moving) {
             if (!onMovingPlatform) {
@@ -527,12 +527,12 @@
 
       platforms.forEach(p => p.element.remove());
       platforms = [
-        createInitialPlatform(50, 50),
-        createInitialPlatform(150, 100),
-        createInitialPlatform(250, 0),
-        createInitialPlatform(350, 100),
-        createInitialPlatform(450, 0),
-        createInitialPlatform(550, 100)
+        createInitialPlatform(50, 75),
+        createInitialPlatform(150, 25),
+        createInitialPlatform(250, 75),
+        createInitialPlatform(350, 25),
+        createInitialPlatform(450, 75),
+        createInitialPlatform(550, 25)
       ];
 
       requestAnimationFrame(update);
