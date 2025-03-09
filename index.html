@@ -94,7 +94,7 @@
       platform.className = 'platform';
       platform.style.bottom = bottom + 'px';
       platform.style.left = left + 'px';
-      platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%60600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%60600.png)');
+      platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
       return { bottom, left, width: 200, height: 67, element: platform, passed: false, moving, speed, icy, slow };
@@ -262,7 +262,7 @@
       newPlatform.style.bottom = newBottom + 'px';
       newPlatform.style.left = newLeft + 'px';
       newPlatform.style.width = newWidth + 'px';
-      newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%60600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%60600.png)');
+      newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
       return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
@@ -307,7 +307,8 @@
       });
 
       const lowestPlatform = platforms[0];
-      if (lowestPlatform.bottom < -lowestPlatform.height) {
+      if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
+        console.log("Removing platform at bottom:", lowestPlatform.bottom);
         lowestPlatform.element.remove();
         platforms.shift();
       }
@@ -316,6 +317,9 @@
       if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
         platforms.push(generatePlatform());
       }
+
+      // Debug: Log platform count and positions
+      console.log("Platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
     }
 
     // Game loop
@@ -357,11 +361,11 @@
         if (
           overlapsX &&
           velocityY <= 0 &&
-          prevY + charHeight > platformTop && // Was above platform
-          charBottom <= platformTop + 5 && // Within 5px above platform
-          charBottom >= platformTop - 5 // Within 5px below platform
+          prevY + charHeight > platformTop &&
+          charBottom <= platformTop + 5 &&
+          charBottom >= platformTop - 5
         ) {
-          console.log("Collision Detected", { characterY, charBottom, platformTop, velocityY });
+          console.log("Collision Detected", { characterY, charBottom, platformTop, platformBottom: platform.bottom, velocityY });
           characterY = platformTop - charHeight; // Align bottom with platform top
           velocityY = 0;
           onGround = true;
