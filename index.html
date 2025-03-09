@@ -42,9 +42,9 @@
 
     .platform {
       position: absolute;
-      width: 200px; /* Reduced for better proportion */
-      height: 67px; /* Adjusted for 3:1 aspect ratio (600x200px image) */
-      background-size: contain; /* Preserve aspect ratio */
+      width: 200px;
+      height: 67px;
+      background-size: contain;
       background-repeat: no-repeat;
       background-position: center;
       z-index: 5;
@@ -96,8 +96,8 @@
       platform.style.left = left + 'px';
       platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(platform);
-      const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // Initial 0.5-1.5
-      return { bottom, left, width: 200, height: 67, element: platform, passed: false, moving, speed, icy, slow }; // Updated width and height
+      const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+      return { bottom, left, width: 200, height: 67, element: platform, passed: false, moving, speed, icy, slow };
     }
 
     let platforms = [
@@ -171,7 +171,7 @@
     function generatePlatform() {
       const stage = getStage();
       const highestPlatform = platforms[platforms.length - 1];
-      const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease; // 120px at 150+
+      const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
       const maxJumpDistance = baseMaxJumpDistance + stage * horizontalDistanceIncrease;
       const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
@@ -186,21 +186,19 @@
         consecutiveBlues = 0;
         consecutiveBrowns = 0;
       } else {
-        const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + 200); // Adjusted for new platform width
-        const maxLeft = Math.min(gameWidth - 200, highestPlatform.left + maxJumpDistance - 200); // Adjusted for new platform width
+        const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + 200);
+        const maxLeft = Math.min(gameWidth - 200, highestPlatform.left + maxJumpDistance - 200);
         newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
         newWidth = 200;
         const movingChance = Math.min(0 + stage * 0.2, 0.8);
         moving = Math.random() < movingChance;
 
-        // Set speed based on stage
-        if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // 50-100: 0.5-1.5
-        else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // 100-150: 0.5-2
-        else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // 150-200: 0.5-2.5
-        else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // 200-250: 0.5-3
-        else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0; // 250+: 1-3
+        if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0;
 
-        // Platform types
         if (stage === 2 && score >= 100 && score < 150) {
           if (blueCountStage2 < 5 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage2 < 3)) {
             icy = true;
@@ -334,7 +332,7 @@
           jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
         }
         velocityY = jumpStrength;
-        onGround = false;
+        onGround = false; // Reset onGround when jumping
         onMovingPlatform = null;
         platformOffsetX = 0;
         keys.jump = false;
@@ -426,14 +424,14 @@
           overlapsX &&
           velocityY <= 0 &&
           prevY >= platformTop &&
-          characterY < platformTop + 10 // Increased buffer for landing
+          characterY + charHeight <= platformTop + 10 // Check character's bottom edge
         ) {
-          characterY = platformTop - 10; // Adjusted offset to align feet
+          characterY = platformTop - charHeight + 5; // Align feet with platform (approx. platformTop - 95)
           velocityY = 0;
           onGround = true;
           // Maintain character on platform if already on ground
           if (onGround && characterY + charHeight > platformTop) {
-            characterY = platformTop - 10;
+            characterY = platformTop - charHeight + 5;
           }
           if (platform.moving) {
             if (!onMovingPlatform) {
