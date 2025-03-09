@@ -324,6 +324,9 @@
 
       let prevY = characterY;
 
+      // Debug: Log current state
+      console.log("Frame Update", { characterY, velocityY, onGround });
+
       if (keys.jump && onGround) {
         let jumpStrength = baseJumpStrength;
         if (directionHoldStart !== null) {
@@ -332,7 +335,7 @@
           jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
         }
         velocityY = jumpStrength;
-        onGround = false; // Reset onGround when jumping
+        onGround = false;
         onMovingPlatform = null;
         platformOffsetX = 0;
         keys.jump = false;
@@ -340,16 +343,54 @@
         if (scrollPaused) scrollPaused = false;
       }
 
-      // Apply gravity
+      // Check collision before applying gravity
+      for (let platform of platforms) {
+        let platformTop = platform.bottom + platform.height;
+        let platformLeft = platform.left;
+        let platformRight = platform.left + platform.width;
+
+        let charRight = characterX + charWidth;
+        let charBottom = characterY + charHeight;
+
+        let overlapsX = characterX < platformRight && charRight > platformLeft;
+
+        if (
+          overlapsX &&
+          velocityY <= 0 &&
+          prevY + charHeight > platformTop && // Was above platform
+          charBottom <= platformTop + 5 && // Within 5px above platform
+          charBottom >= platformTop - 5 // Within 5px below platform
+        ) {
+          console.log("Collision Detected", { characterY, charBottom, platformTop, velocityY });
+          characterY = platformTop - charHeight; // Align bottom with platform top
+          velocityY = 0;
+          onGround = true;
+          if (platform.moving) {
+            if (!onMovingPlatform) {
+              platformOffsetX = characterX - platform.left;
+            }
+            onMovingPlatform = platform;
+          } else {
+            onMovingPlatform = null;
+            platformOffsetX = 0;
+          }
+          if (score % 50 === 0 && platform.width === gameWidth) {
+            scrollPaused = true;
+          }
+          break;
+        }
+      }
+
+      // Apply gravity and movement
       velocityY += gravity;
-      if (Math.abs(velocityY) < 0.1) velocityY = 0; // Threshold to prevent minor oscillations
+      if (Math.abs(velocityY) < 0.1) velocityY = 0;
       characterY += velocityY;
 
       if (keys.left && !keys.right) lastDirection = -1;
       else if (keys.right && !keys.left) lastDirection = 1;
 
-      const currentMaxMoveSpeed = (onMovingPlatform && onMovingPlatform.slow) ? slowMaxMoveSpeed : maxMoveSpeed;
-      const currentAcceleration = (onMovingPlatform && onMovingPlatform.slow) ? slowAcceleration : acceleration;
+      const currentMaxMoveSpeed = (onGround && onMovingPlatform && onMovingPlatform.slow) ? slowMaxMoveSpeed : maxMoveSpeed;
+      const currentAcceleration = (onGround && onMovingPlatform && onMovingPlatform.slow) ? slowAcceleration : acceleration;
 
       if (keys.left && !keys.right) {
         velocityX -= currentAcceleration;
@@ -405,43 +446,6 @@
         if (scrolling && !scrollPaused) {
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
-        }
-      }
-
-      for (let platform of platforms) {
-        let platformTop = platform.bottom + platform.height;
-        let platformLeft = platform.left;
-        let platformRight = platform.left + platform.width;
-
-        let charRight = characterX + charWidth;
-        let charBottom = characterY + charHeight;
-
-        let overlapsX = characterX < platformRight && charRight > platformLeft;
-
-        if (
-          overlapsX &&
-          velocityY <= 0 &&
-          prevY + charHeight >= platformTop && // Character was above platform
-          charBottom <= platformTop + 5 && // Character's bottom is near platform top
-          charBottom >= platformTop - 5 // Allow a small tolerance
-        ) {
-          console.log("Landing detected", { characterY, charBottom, platformTop, velocityY }); // Debug log
-          characterY = platformTop - charHeight; // Align bottom of character with platform top
-          velocityY = 0;
-          onGround = true;
-          if (platform.moving) {
-            if (!onMovingPlatform) {
-              platformOffsetX = characterX - platform.left;
-            }
-            onMovingPlatform = platform;
-          } else {
-            onMovingPlatform = null;
-            platformOffsetX = 0;
-          }
-          if (score % 50 === 0 && platform.width === gameWidth) {
-            scrollPaused = true;
-          }
-          break;
         }
       }
 
