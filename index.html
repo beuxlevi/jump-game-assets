@@ -27,12 +27,11 @@
 
     #character {
       position: absolute;
-      width: 60px; /* Increased for visibility */
-      height: 60px; /* Adjusted for Seb Front 300.png (assuming 1:1 aspect ratio) */
+      width: 100px; /* Increased for visibility (adjust based on image) */
+      height: 100px; /* Adjusted for Seb Front 300.png */
       left: 190px;
       bottom: 0px;
       z-index: 10;
-      transform: translateY(-10px); /* Offset to lower the character visually so feet touch platform */
     }
 
     #character img {
@@ -44,9 +43,10 @@
     .platform {
       position: absolute;
       width: 100px;
-      height: 30px; /* Increased to reduce squashing (assuming 300px wide images) */
-      background-size: 100% 100%;
+      height: 50px; /* Increased to reduce squashing (assuming 300px wide images with ~6:1 ratio) */
+      background-size: contain; /* Changed to avoid distortion */
       background-repeat: no-repeat;
+      background-position: center;
       z-index: 5;
     }
 
@@ -97,7 +97,7 @@
       platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20300.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20300.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20300.png)');
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0; // Initial 0.5-1.5
-      return { bottom, left, width: 100, height: 30, element: platform, passed: false, moving, speed, icy, slow }; // Updated height to 30
+      return { bottom, left, width: 100, height: 50, element: platform, passed: false, moving, speed, icy, slow }; // Updated height to 50
     }
 
     let platforms = [
@@ -129,8 +129,8 @@
     let platformOffsetX = 0;
     const gameWidth = 400;
     const gameHeight = 600;
-    const charWidth = 60; // Increased to match new character size
-    const charHeight = 60; // Increased to match new character size
+    const charWidth = 100; // Increased to match new character size
+    const charHeight = 100; // Increased to match new character size
     let gameOver = false;
     let scrolling = false;
     let scrollPaused = false;
@@ -266,7 +266,7 @@
       newPlatform.style.width = newWidth + 'px';
       newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20300.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20300.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20300.png)');
       document.getElementById('game').appendChild(newPlatform);
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 30, element: newPlatform, passed: false, moving, speed, icy, slow }; // Updated height to 30
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: 50, element: newPlatform, passed: false, moving, speed, icy, slow }; // Updated height to 50
     }
 
     // Update platforms and score
@@ -424,7 +424,8 @@
           prevY >= platformTop &&
           characterY < platformTop
         ) {
-          characterY = platformTop;
+          characterY = platformTop; // Set to platform top
+          characterY += 10; // Add offset to lower character so feet touch
           velocityY = 0;
           onGround = true;
           if (platform.moving) {
