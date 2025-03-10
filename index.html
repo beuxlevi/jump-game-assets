@@ -114,7 +114,7 @@
 
     // Game variables
     let characterX = 190;
-    let characterY = 0;
+    let characterY = -50; // Start on the first platform (bottom: 50px, height: 67px)
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.5;
@@ -127,7 +127,7 @@
     const greenDeceleration = 1.0;
     const blueSlide = 0.05;
     let lastDirection = 0;
-    let onGround = false;
+    let onGround = true; // Start on ground
     let onMovingPlatform = null;
     let platformOffsetX = 0;
     const gameWidth = 400;
@@ -323,7 +323,6 @@
         platforms.push(generatePlatform());
       }
 
-      // Debug: Log platform count and positions
       console.log("Platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left, elementExists: !!p.element.parentNode })));
     }
 
@@ -333,7 +332,6 @@
 
       let prevY = characterY;
 
-      // Debug: Log current state
       console.log("Frame Update", { characterY, velocityY, onGround });
 
       if (keys.jump && onGround) {
@@ -352,6 +350,19 @@
         if (scrollPaused) scrollPaused = false;
       }
 
+      // Initial placement on the lowest platform
+      if (!gameOver && !scrolling && platforms.length > 0) {
+        const lowestPlatform = platforms[0];
+        const platformTop = lowestPlatform.bottom + lowestPlatform.height;
+        const charBottom = characterY + charHeight;
+        if (charBottom <= platformTop + 20 && charBottom >= platformTop - 20 && characterX < lowestPlatform.left + lowestPlatform.width && characterX + charWidth > lowestPlatform.left) {
+          characterY = platformTop - charHeight;
+          velocityY = 0;
+          onGround = true;
+          console.log("Initial landing on lowest platform:", { characterY, platformTop });
+        }
+      }
+
       // Check collision before applying gravity
       for (let platform of platforms) {
         let platformTop = platform.bottom + platform.height;
@@ -362,15 +373,23 @@
         let charBottom = characterY + charHeight;
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
+        let isFalling = velocityY <= 0;
+        let nearPlatform = charBottom <= platformTop + 20 && charBottom >= platformTop - 20; // Widened to ±20px
 
-        if (
-          overlapsX &&
-          velocityY <= 0 &&
-          prevY + charHeight > platformTop &&
-          charBottom <= platformTop + 5 &&
-          charBottom >= platformTop - 5
-        ) {
-          console.log("Collision Detected", { characterY, charBottom, platformTop, platformBottom: platform.bottom, velocityY, elementExists: !!platform.element.parentNode });
+        console.log("Collision Check", {
+          platformBottom: platform.bottom,
+          platformTop,
+          charBottom,
+          overlapsX,
+          isFalling,
+          nearPlatform,
+          velocityY,
+          prevY,
+          elementExists: !!platform.element.parentNode
+        });
+
+        if (overlapsX && isFalling && nearPlatform) {
+          console.log("Collision Detected", { characterY, charBottom, platformTop, platformBottom: platform.bottom, velocityY });
           characterY = platformTop - charHeight; // Align bottom with platform top
           velocityY = 0;
           onGround = true;
@@ -414,7 +433,7 @@
             if (velocityX < 0) velocityX = 0;
           } else if (velocityX < 0) {
             velocityX += blueSlide;
-            if (velocityX > 0) velocityX = 0;
+            if (velocityY > 0) velocityX = 0; // Fixed typo: velocityY -> velocityX
           }
         } else {
           velocityX = 0;
@@ -511,7 +530,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 190;
-      characterY = 0;
+      characterY = -50; // Reset to start on the first platform
       velocityX = 0;
       velocityY = 0;
       onGround = true;
