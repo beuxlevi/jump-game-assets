@@ -99,7 +99,7 @@
       platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      console.log("Created platform:", { bottom, left, moving, icy, slow, elementExists: !!platform.parentNode });
+      console.log("Created platform:", { bottom, left, moving, icy, slow, elementExists: !!platform.parentNode, domBottom: platform.style.bottom });
       return { bottom, left, width: 200, height: 67, element: platform, passed: false, moving, speed, icy, slow };
     }
 
@@ -267,7 +267,7 @@
       newPlatform.style.width = newWidth + 'px';
       newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      console.log("Generated platform:", { bottom: newBottom, left: newLeft, moving, icy, slow, elementExists: !!newPlatform.parentNode });
+      console.log("Generated platform:", { bottom: newBottom, left: newLeft, moving, icy, slow, elementExists: !!newPlatform.parentNode, domBottom: newPlatform.style.bottom });
       return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
@@ -298,7 +298,7 @@
             p.element.style.left = p.left + 'px';
           }
           p.element.style.bottom = p.bottom + 'px';
-          console.log("Updating platform:", { bottom: p.bottom, left: p.left, elementExists: !!p.element.parentNode });
+          console.log("Updating platform:", { bottom: p.bottom, left: p.left, elementExists: !!p.element.parentNode, domBottom: p.element.style.bottom });
         });
       }
 
@@ -323,7 +323,7 @@
         platforms.push(generatePlatform());
       }
 
-      console.log("Platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left, elementExists: !!p.element.parentNode })));
+      console.log("Platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left, elementExists: !!p.element.parentNode, domBottom: p.element.style.bottom })));
     }
 
     // Game loop
@@ -350,20 +350,12 @@
         if (scrollPaused) scrollPaused = false;
       }
 
-      // Initial placement on the lowest platform
-      if (!gameOver && !scrolling && platforms.length > 0) {
-        const lowestPlatform = platforms[0];
-        const platformTop = lowestPlatform.bottom + lowestPlatform.height;
-        const charBottom = characterY + charHeight;
-        if (charBottom <= platformTop + 20 && charBottom >= platformTop - 20 && characterX < lowestPlatform.left + lowestPlatform.width && characterX + charWidth > lowestPlatform.left) {
-          characterY = platformTop - charHeight;
-          velocityY = 0;
-          onGround = true;
-          console.log("Initial landing on lowest platform:", { characterY, platformTop });
-        }
-      }
+      // Apply gravity and update position first
+      velocityY += gravity;
+      if (Math.abs(velocityY) < 0.1) velocityY = 0;
+      characterY += velocityY;
 
-      // Check collision before applying gravity
+      // Check collision after updating position
       for (let platform of platforms) {
         let platformTop = platform.bottom + platform.height;
         let platformLeft = platform.left;
@@ -374,18 +366,21 @@
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
-        let nearPlatform = charBottom <= platformTop + 20 && charBottom >= platformTop - 20; // Widened to ±20px
+        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30; // Widened to ±30px
+        let distanceToPlatform = charBottom - platformTop;
 
         console.log("Collision Check", {
           platformBottom: platform.bottom,
           platformTop,
           charBottom,
+          distanceToPlatform,
           overlapsX,
           isFalling,
           nearPlatform,
           velocityY,
           prevY,
-          elementExists: !!platform.element.parentNode
+          elementExists: !!platform.element.parentNode,
+          domBottom: platform.element.style.bottom
         });
 
         if (overlapsX && isFalling && nearPlatform) {
@@ -409,10 +404,19 @@
         }
       }
 
-      // Apply gravity and movement
-      velocityY += gravity;
-      if (Math.abs(velocityY) < 0.1) velocityY = 0;
-      characterY += velocityY;
+      // Fallback ground check
+      if (characterY <= 0) {
+        characterY = 0;
+        velocityY = 0;
+        onGround = true;
+        onMovingPlatform = null;
+        platformOffsetX = 0;
+        console.log("Landed on ground:", { characterY });
+        if (scrolling && !scrollPaused) {
+          gameOver = true;
+          document.getElementById('game-over').style.display = 'block';
+        }
+      }
 
       if (keys.left && !keys.right) lastDirection = -1;
       else if (keys.right && !keys.left) lastDirection = 1;
@@ -433,7 +437,7 @@
             if (velocityX < 0) velocityX = 0;
           } else if (velocityX < 0) {
             velocityX += blueSlide;
-            if (velocityY > 0) velocityX = 0; // Fixed typo: velocityY -> velocityX
+            if (velocityX > 0) velocityX = 0;
           }
         } else {
           velocityX = 0;
@@ -464,18 +468,6 @@
       if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
 
       onGround = false;
-
-      if (characterY <= 0) {
-        characterY = 0;
-        velocityY = 0;
-        onGround = true;
-        onMovingPlatform = null;
-        platformOffsetX = 0;
-        if (scrolling && !scrollPaused) {
-          gameOver = true;
-          document.getElementById('game-over').style.display = 'block';
-        }
-      }
 
       if (characterY < -charHeight && !scrollPaused) {
         gameOver = true;
