@@ -332,8 +332,9 @@
 
       let prevY = characterY;
 
-      console.log("Frame Update", { characterY, velocityY, onGround });
+      console.log("Frame Update", { characterX, characterY, velocityY, onGround, keys });
 
+      // Handle jump immediately
       if (keys.jump && onGround) {
         let jumpStrength = baseJumpStrength;
         if (directionHoldStart !== null) {
@@ -345,9 +346,10 @@
         onGround = false;
         onMovingPlatform = null;
         platformOffsetX = 0;
-        keys.jump = false;
+        keys.jump = false; // Reset jump key immediately
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
+        console.log("Jump triggered", { jumpStrength, characterY });
       }
 
       // Apply gravity and update position first
@@ -366,7 +368,7 @@
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
-        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30; // Widened to ±30px
+        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30;
         let distanceToPlatform = charBottom - platformTop;
 
         console.log("Collision Check", {
@@ -383,7 +385,7 @@
           domBottom: platform.element.style.bottom
         });
 
-        if (overlapsX && isFalling && nearPlatform) {
+        if (overlapsX && isFalling && nearPlatform && platform.element.parentNode) {
           console.log("Collision Detected", { characterY, charBottom, platformTop, platformBottom: platform.bottom, velocityY });
           characterY = platformTop - charHeight; // Align bottom with platform top
           velocityY = 0;
@@ -464,7 +466,10 @@
         characterX += velocityX;
       }
 
-      if (characterX < 0) characterX = 0;
+      if (characterX < 0) {
+        characterX = 0;
+        // Remove any jump trigger at boundary
+      }
       if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
 
       onGround = false;
@@ -494,6 +499,7 @@
       ) {
         event.preventDefault();
         keys.jump = true;
+        console.log("Jump key pressed", { keys });
       }
 
       if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
