@@ -112,7 +112,8 @@
 
     // Game variables
     let characterX = 190;
-    let characterY = -50; // Start on the first platform (bottom: 50px, height: 67px)
+    const lowestPlatformTop = 50 + 67; // Top of the lowest platform
+    let characterY = lowestPlatformTop - charHeight + 1; // Align bottom with second-to-top pixel (117 - 100 + 1 = 18)
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.5;
@@ -365,7 +366,7 @@
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
-        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30;
+        let nearPlatform = charBottom <= platformTop + 5 && charBottom >= platformTop - 5; // Tighter range
         let distanceToPlatform = charBottom - platformTop;
 
         console.log("Collision Check", {
@@ -403,18 +404,12 @@
         }
       }
 
-      // Fallback ground check
-      if (characterY <= 0) {
-        characterY = 0;
-        velocityY = 0;
-        onGround = true;
-        onMovingPlatform = null;
-        platformOffsetX = 0;
-        console.log("Landed on ground:", { characterY });
-        if (scrolling && !scrollPaused) {
-          gameOver = true;
-          document.getElementById('game-over').style.display = 'block';
-        }
+      // Fallback ground check (only trigger game over)
+      if (characterY < -charHeight && !scrollPaused) {
+        characterY = -charHeight; // Prevent falling further
+        gameOver = true;
+        document.getElementById('game-over').style.display = 'block';
+        console.log("Game Over triggered", { characterY });
       }
 
       if (keys.left && !keys.right) lastDirection = -1;
@@ -471,11 +466,6 @@
 
       onGround = false;
 
-      if (characterY < -charHeight && !scrollPaused) {
-        gameOver = true;
-        document.getElementById('game-over').style.display = 'block';
-      }
-
       const character = document.getElementById('character');
       character.style.bottom = characterY + 'px';
       character.style.left = characterX + 'px';
@@ -528,7 +518,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 190;
-      characterY = -50; // Reset to start on the first platform
+      characterY = lowestPlatformTop - charHeight + 1; // Reset to start on the first platform
       velocityX = 0;
       velocityY = 0;
       onGround = true;
