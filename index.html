@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game</title>
+  <title>Endless Jump Game</title>
   <style>
     body {
       margin: 0;
@@ -20,9 +20,9 @@
       position: relative;
       width: 400px;
       height: 600px;
-      background-color: #87CEEB;
       overflow: hidden;
-      border: 1px solid black;
+      border: 2px solid black;
+      background-color: #87CEEB;
     }
 
     #character {
@@ -90,7 +90,7 @@
     const game = document.getElementById("game");
     const character = document.getElementById("character");
     const gameOverScreen = document.getElementById("game-over");
-
+    
     let characterX = 165;
     let characterY = 100;
     let velocityX = 0;
@@ -101,7 +101,7 @@
     let gameOver = false;
     let keys = { left: false, right: false, jump: false };
     let gameScrollY = 0;
-    const maxSpeed = 4;
+    const maxSpeed = 5;
     const acceleration = 0.2;
 
     function createPlatform(bottom, left, type = "grass") {
@@ -140,11 +140,11 @@
       // Limit max speed
       velocityX = Math.max(-maxSpeed, Math.min(maxSpeed, velocityX));
 
-      // Apply gravity
-      velocityY += gravity;
-
       // Apply movement
       characterX += velocityX;
+
+      // Apply gravity
+      velocityY += gravity;
       characterY += velocityY;
 
       // Keep character inside screen bounds
