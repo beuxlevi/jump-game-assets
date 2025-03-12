@@ -22,32 +22,24 @@
       height: 600px;
       background-color: #87CEEB;
       overflow: hidden;
-      border: 1px solid black;
+      border: 2px solid black;
     }
 
     #character {
       position: absolute;
-      width: 100px;
-      height: 100px;
-      left: 190px;
+      width: 50px;
+      height: 50px;
+      left: 175px;
       bottom: 50px;
+      background-color: red;
       z-index: 10;
-    }
-
-    #character img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
     }
 
     .platform {
       position: absolute;
-      width: 200px;
-      height: 67px;
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
-      z-index: 5;
+      width: 100px;
+      height: 20px;
+      background-color: green;
     }
 
     #game-over {
@@ -79,53 +71,45 @@
 </head>
 <body>
   <div id="game">
-    <div id="character">
-      <img src="https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Seb%20Front%20300.png" alt="Character">
-    </div>
+    <div id="character"></div>
     <div id="game-over">Game Over<br>Press R to Restart</div>
     <div id="score">Score: 0</div>
   </div>
 
   <script>
     // Game Variables
-    const gameWidth = 400;
-    const gameHeight = 600;
-    const charWidth = 100;
-    const charHeight = 100;
-    let characterX = 190;
-    let characterY = 100;
+    const game = document.getElementById("game");
+    const character = document.getElementById("character");
+    const gameOverScreen = document.getElementById("game-over");
+
+    let characterX = 175;
+    let characterY = 50;
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.3;
-    const jumpStrength = 12;
+    const jumpStrength = 10;
     let onGround = false;
-    let onMovingPlatform = null;
     let score = 0;
     let gameOver = false;
     let keys = { left: false, right: false, jump: false };
 
     // Create initial platforms
-    function createPlatform(bottom, left, moving = false, icy = false, slow = false) {
+    function createPlatform(bottom, left) {
       const platform = document.createElement('div');
       platform.className = 'platform';
       platform.style.bottom = bottom + 'px';
       platform.style.left = left + 'px';
-      platform.style.width = '200px';
-      platform.style.backgroundImage = slow ? 
-        'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' :
-        (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' :
-        'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(platform);
-      return { bottom, left, width: 200, height: 67, element: platform, moving, speed: moving ? 1 : 0, icy, slow };
+      return { bottom, left, width: 100, height: 20, element: platform };
     }
 
     let platforms = [
-      createPlatform(50, 100),
-      createPlatform(150, 50),
-      createPlatform(250, 100),
+      createPlatform(50, 150),
+      createPlatform(150, 100),
+      createPlatform(250, 200),
       createPlatform(350, 50),
-      createPlatform(450, 100),
-      createPlatform(550, 50)
+      createPlatform(450, 150),
+      createPlatform(550, 100)
     ];
 
     // Game Loop
@@ -144,20 +128,19 @@
       characterY += velocityY;
 
       // Platform Collision
+      onGround = false;
       for (let platform of platforms) {
         let platformTop = platform.bottom + platform.height;
         let platformLeft = platform.left;
         let platformRight = platform.left + platform.width;
-
-        let charRight = characterX + charWidth;
-        let charBottom = characterY + charHeight;
-
+        let charRight = characterX + 50;
+        let charBottom = characterY + 50;
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
         let nearPlatform = charBottom >= platform.bottom && charBottom <= platformTop + 5;
 
         if (overlapsX && isFalling && nearPlatform) {
-          characterY = platformTop - charHeight;
+          characterY = platformTop - 50;
           velocityY = 0;
           onGround = true;
           break;
@@ -170,44 +153,43 @@
 
       // Prevent leaving bounds
       if (characterX < 0) characterX = 0;
-      if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
+      if (characterX > 350) characterX = 350;
 
       // Update character position
-      const character = document.getElementById('character');
-      character.style.bottom = characterY + 'px';
-      character.style.left = characterX + 'px';
+      character.style.bottom = characterY + "px";
+      character.style.left = characterX + "px";
 
       // Game Over Condition
-      if (characterY < -charHeight) {
+      if (characterY < -50) {
         gameOver = true;
-        document.getElementById('game-over').style.display = 'block';
+        gameOverScreen.style.display = "block";
       }
 
       requestAnimationFrame(update);
     }
 
     // Keyboard Events
-    document.addEventListener('keydown', (event) => {
-      if (gameOver && event.code === 'KeyR') resetGame();
-      if (event.code === 'ArrowUp' || event.code === 'Space') keys.jump = true;
-      if (event.code === 'ArrowLeft') keys.left = true;
-      if (event.code === 'ArrowRight') keys.right = true;
+    document.addEventListener("keydown", (event) => {
+      if (gameOver && event.code === "KeyR") resetGame();
+      if (event.code === "ArrowUp" || event.code === "Space") keys.jump = true;
+      if (event.code === "ArrowLeft") keys.left = true;
+      if (event.code === "ArrowRight") keys.right = true;
     });
 
-    document.addEventListener('keyup', (event) => {
-      if (event.code === 'ArrowLeft') keys.left = false;
-      if (event.code === 'ArrowRight') keys.right = false;
+    document.addEventListener("keyup", (event) => {
+      if (event.code === "ArrowLeft") keys.left = false;
+      if (event.code === "ArrowRight") keys.right = false;
     });
 
     // Reset Game
     function resetGame() {
       gameOver = false;
-      characterX = 190;
-      characterY = 100;
+      characterX = 175;
+      characterY = 50;
       velocityX = 0;
       velocityY = 0;
       onGround = false;
-      document.getElementById('game-over').style.display = 'none';
+      gameOverScreen.style.display = "none";
       requestAnimationFrame(update);
     }
 
