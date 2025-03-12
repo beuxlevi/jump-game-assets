@@ -48,34 +48,6 @@
       background-repeat: no-repeat;
       background-position: center;
       z-index: 5;
-      border: 2px solid red; /* Debug: Add border to confirm presence */
-      background-color: rgba(255, 0, 0, 0.3); /* Debug: Fallback color if image fails */
-    }
-
-    #game-over {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 24px;
-      font-family: Arial, sans-serif;
-      color: white;
-      text-align: center;
-      background-color: rgba(0, 0, 0, 0.7);
-      padding: 20px;
-      z-index: 20;
-      display: none;
-    }
-
-    #score {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 20px;
-      font-family: Arial, sans-serif;
-      color: black;
-      z-index: 15;
     }
   </style>
 </head>
@@ -360,6 +332,7 @@
       // Check collision after updating position
       for (let platform of platforms) {
         let platformTop = platform.bottom + platform.height;
+        let platformSecondTop = platformTop - 1; // Second-to-top pixel of the platform
         let platformLeft = platform.left;
         let platformRight = platform.left + platform.width;
 
@@ -368,41 +341,48 @@
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
-        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30;
-        let distanceToPlatform = charBottom - platformTop;
+        let isRising = velocityY > 0;
+        let nearSecondTop = Math.abs(charBottom - platformSecondTop) <= 1; // Within 1px of second-to-top
 
         console.log("Collision Check", {
           platformBottom: platform.bottom,
           platformTop,
+          platformSecondTop,
           charBottom,
-          distanceToPlatform,
+          distanceToSecondTop: charBottom - platformSecondTop,
           overlapsX,
           isFalling,
-          nearPlatform,
+          isRising,
+          nearSecondTop,
           velocityY,
           prevY,
           elementExists: !!platform.element.parentNode,
           domBottom: platform.element.style.bottom
         });
 
-        if (overlapsX && isFalling && nearPlatform && platform.element.parentNode) {
-          console.log("Collision Detected", { characterY, charBottom, platformTop, platformBottom: platform.bottom, velocityY });
-          characterY = platformTop - charHeight; // Align bottom with platform top
-          velocityY = 0;
-          onGround = true;
-          if (platform.moving) {
-            if (!onMovingPlatform) {
-              platformOffsetX = characterX - platform.left;
+        if (overlapsX) {
+          if (isRising && charBottom > platformTop) {
+            // Allow passing through when jumping upward
+            continue;
+          } else if (isFalling && nearSecondTop && platform.element.parentNode) {
+            console.log("Collision Detected", { characterY, charBottom, platformSecondTop, platformBottom: platform.bottom, velocityY });
+            characterY = platformSecondTop - charHeight; // Align bottom with second-to-top pixel
+            velocityY = 0;
+            onGround = true;
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
+              onMovingPlatform = platform;
+            } else {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
             }
-            onMovingPlatform = platform;
-          } else {
-            onMovingPlatform = null;
-            platformOffsetX = 0;
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              scrollPaused = true;
+            }
+            break;
           }
-          if (score % 50 === 0 && platform.width === gameWidth) {
-            scrollPaused = true;
-          }
-          break;
         }
       }
 
@@ -466,10 +446,7 @@
         characterX += velocityX;
       }
 
-      if (characterX < 0) {
-        characterX = 0;
-        // Remove any jump trigger at boundary
-      }
+      if (characterX < 0) characterX = 0;
       if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
 
       onGround = false;
