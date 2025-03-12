@@ -112,8 +112,8 @@
 
     // Game variables
     let characterX = 190;
-    const lowestPlatformTop = 50 + 67; // Top of the lowest platform
-    let characterY = lowestPlatformTop - charHeight + 1; // Align bottom with second-to-top pixel (117 - 100 + 1 = 18)
+    const lowestPlatformTop = 50 + 67; // Top of the lowest platform (117px)
+    let characterY = lowestPlatformTop - 100; // Align bottom with platform top (117 - 100 = 17)
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.5;
@@ -348,12 +348,15 @@
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
         console.log("Jump triggered", { jumpStrength, characterY });
+      } else if (keys.jump && !onGround) {
+        console.log("Jump not triggered: onGround is false", { onGround, keys });
       }
 
-      // Apply gravity and update position first
+      // Apply gravity and update position
       velocityY += gravity;
       if (Math.abs(velocityY) < 0.1) velocityY = 0;
       characterY += velocityY;
+      console.log("After gravity", { characterY, velocityY });
 
       // Check collision after updating position
       for (let platform of platforms) {
@@ -366,7 +369,7 @@
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
-        let nearPlatform = charBottom <= platformTop + 5 && charBottom >= platformTop - 5; // Tighter range
+        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30; // Wider range for initial landing
         let distanceToPlatform = charBottom - platformTop;
 
         console.log("Collision Check", {
@@ -404,9 +407,8 @@
         }
       }
 
-      // Fallback ground check (only trigger game over)
-      if (characterY < -charHeight && !scrollPaused) {
-        characterY = -charHeight; // Prevent falling further
+      // Fallback ground check (only trigger game over after scrolling starts)
+      if (characterY < -charHeight && scrolling && !scrollPaused) {
         gameOver = true;
         document.getElementById('game-over').style.display = 'block';
         console.log("Game Over triggered", { characterY });
@@ -518,7 +520,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 190;
-      characterY = lowestPlatformTop - charHeight + 1; // Reset to start on the first platform
+      characterY = lowestPlatformTop - charHeight; // Reset to start on the first platform
       velocityX = 0;
       velocityY = 0;
       onGround = true;
