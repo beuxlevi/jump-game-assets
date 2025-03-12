@@ -92,7 +92,7 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 30; // Estimated height of visible platform surface (adjust if needed)
+    const visiblePlatformHeight = 30; // Estimated height of visible platform surface
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -113,12 +113,12 @@
 
     // Create initial platforms
     let platforms = [
-      createInitialPlatform(70, 100),
-      createInitialPlatform(170, 50),
-      createInitialPlatform(270, 100),
-      createInitialPlatform(370, 50),
-      createInitialPlatform(470, 100),
-      createInitialPlatform(570, 50)
+      createInitialPlatform(100, 100), // Increased to 100px to ensure clear jump progression
+      createInitialPlatform(200, 50),
+      createInitialPlatform(300, 100),
+      createInitialPlatform(400, 50),
+      createInitialPlatform(500, 100),
+      createInitialPlatform(600, 50)
     ];
 
     // Game variables
@@ -342,20 +342,20 @@
           jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
         }
         velocityY = jumpStrength;
-        onGround = false;
+        onGround = false; // Ensure onGround is false when jumping
         onMovingPlatform = null;
         platformOffsetX = 0;
         keys.jump = false;
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
-        console.log("Jump triggered", { jumpStrength, characterY });
+        console.log("Jump triggered", { jumpStrength, characterY, onGround });
       }
 
       // Apply gravity and update position
       velocityY += gravity;
       if (Math.abs(velocityY) < 0.1) velocityY = 0;
       characterY += velocityY;
-      console.log("After gravity", { characterY, velocityY });
+      console.log("After gravity", { characterY, velocityY, onGround });
 
       // Floor collision check (only before scrolling)
       if (characterY <= 0) {
@@ -365,7 +365,7 @@
           onGround = true;
           onMovingPlatform = null;
           platformOffsetX = 0;
-          console.log("Landed on floor", { characterY });
+          console.log("Landed on floor", { characterY, onGround });
         } else {
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
@@ -375,7 +375,7 @@
         // Check platform collisions
         let collided = false;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for collision
+          let platformTop = platform.bottom + platform.height; // Use full height for initial collision
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -383,9 +383,9 @@
           let charBottom = characterY + charHeight;
 
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 5;
+          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 10; // Widened tolerance
           let isFalling = velocityY <= 0;
-          let isNowTouching = charBottom >= platformTop - 5 && charBottom <= platformTop + 5;
+          let isNowTouching = charBottom >= platformTop - 10 && charBottom <= platformTop + 10; // Widened tolerance
 
           console.log("Collision Check", {
             platformTop,
@@ -394,11 +394,12 @@
             wasPreviouslyAbove,
             isFalling,
             isNowTouching,
-            characterY
+            characterY,
+            platform: platform.bottom
           });
 
           if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
-            characterY = platformTop - charHeight; // Align with visible top
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Align with visible top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -414,12 +415,44 @@
             if (score % 50 === 0 && platform.width === gameWidth) {
               scrollPaused = true;
             }
-            console.log("Landed on platform", { characterY, platformTop });
+            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
             break;
           }
         }
         if (!collided) {
           onGround = false;
+        }
+      }
+
+      // Secondary check for falling through (wider tolerance)
+      if (!onGround && velocityY <= 0) {
+        for (let platform of platforms) {
+          let platformTop = platform.bottom + platform.height;
+          let platformLeft = platform.left;
+          let platformRight = platform.left + platform.width;
+
+          let charRight = characterX + charWidth;
+          let charBottom = characterY + charHeight;
+
+          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+          let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20; // Wider tolerance for falling
+
+          if (overlapsX && isNowTouching) {
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight;
+            velocityY = 0;
+            onGround = true;
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
+              onMovingPlatform = platform;
+            } else {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
+            }
+            console.log("Secondary landing on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+            break;
+          }
         }
       }
 
@@ -549,12 +582,12 @@
 
       platforms.forEach(p => p.element.remove());
       platforms = [
-        createInitialPlatform(70, 100),
-        createInitialPlatform(170, 50),
-        createInitialPlatform(270, 100),
-        createInitialPlatform(370, 50),
-        createInitialPlatform(470, 100),
-        createInitialPlatform(570, 50)
+        createInitialPlatform(100, 100),
+        createInitialPlatform(200, 50),
+        createInitialPlatform(300, 100),
+        createInitialPlatform(400, 50),
+        createInitialPlatform(500, 100),
+        createInitialPlatform(600, 50)
       ];
 
       requestAnimationFrame(update);
