@@ -49,6 +49,32 @@
       background-position: center;
       z-index: 5;
     }
+
+    #game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      font-family: Arial, sans-serif;
+      color: white;
+      text-align: center;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      z-index: 20;
+      display: none;
+    }
+
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-family: Arial, sans-serif;
+      color: black;
+      z-index: 15;
+    }
   </style>
 </head>
 <body>
@@ -86,7 +112,10 @@
 
     // Game variables
     let characterX = 190;
-    let characterY = -50; // Start on the first platform (bottom: 50px, height: 67px)
+    // Align character with the second-to-top pixel of the lowest platform (bottom: 50, height: 67)
+    const lowestPlatformTop = 50 + 67; // platformTop = 117
+    const lowestPlatformSecondTop = lowestPlatformTop - 1; // 116
+    let characterY = lowestPlatformSecondTop - 100; // 116 - 100 = 16
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.5;
@@ -321,7 +350,7 @@
         keys.jump = false; // Reset jump key immediately
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
-        console.log("Jump triggered", { jumpStrength, characterY });
+        console.log("Jump triggered", { jumpStrength, characterY, onGround });
       }
 
       // Apply gravity and update position first
@@ -393,7 +422,7 @@
         onGround = true;
         onMovingPlatform = null;
         platformOffsetX = 0;
-        console.log("Landed on ground:", { characterY });
+        console.log("Landed on ground:", { characterY, onGround });
         if (scrolling && !scrollPaused) {
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
@@ -476,7 +505,7 @@
       ) {
         event.preventDefault();
         keys.jump = true;
-        console.log("Jump key pressed", { keys });
+        console.log("Jump key pressed", { keys, onGround });
       }
 
       if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
@@ -505,7 +534,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 190;
-      characterY = -50; // Reset to start on the first platform
+      characterY = lowestPlatformSecondTop - 100; // Reset to start on the first platform
       velocityX = 0;
       velocityY = 0;
       onGround = true;
