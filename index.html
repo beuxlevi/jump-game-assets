@@ -39,6 +39,15 @@
       height: 100%;
       object-fit: contain;
     }
+    
+    #floor {
+      position: absolute;
+      width: 100%;
+      height: 20px;
+      bottom: 0;
+      background-color: #8B4513;
+      z-index: 5;
+    }
 
     .platform {
       position: absolute;
@@ -79,6 +88,7 @@
 </head>
 <body>
   <div id="game">
+    <div id="floor"></div>
     <div id="character">
       <img src="https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Seb%20Front%20300.png" alt="Character">
     </div>
@@ -92,6 +102,7 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
+    const floorHeight = 20;
     
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -109,18 +120,18 @@
 
     // Create initial platforms
     let platforms = [
-      createInitialPlatform(50, 100),
-      createInitialPlatform(150, 50),
-      createInitialPlatform(250, 100),
-      createInitialPlatform(350, 50),
-      createInitialPlatform(450, 100),
-      createInitialPlatform(550, 50)
+      createInitialPlatform(70, 100),  // Adjusted height to be above floor
+      createInitialPlatform(170, 50),
+      createInitialPlatform(270, 100),
+      createInitialPlatform(370, 50),
+      createInitialPlatform(470, 100),
+      createInitialPlatform(570, 50)
     ];
 
     // Game variables
     let characterX = 150;
-    const lowestPlatformTop = 50 + 67; // Top of the lowest platform
-    let characterY = lowestPlatformTop - charHeight; // Position character on first platform
+    const lowestPlatformTop = 70 + 67; // Top of the lowest platform (adjusted)
+    let characterY = floorHeight; // Start on the floor
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.5;
@@ -351,47 +362,61 @@
       // Apply gravity and update position first
       velocityY += gravity;
       if (Math.abs(velocityY) < 0.1) velocityY = 0;
+      
+      // Update y position
       characterY += velocityY;
 
-      // Check collision after updating position
-      for (let platform of platforms) {
-        let platformTop = platform.bottom + platform.height;
-        let platformLeft = platform.left;
-        let platformRight = platform.left + platform.width;
+      // Floor collision check
+      if (characterY <= floorHeight) {
+        characterY = floorHeight;
+        velocityY = 0;
+        onGround = true;
+        onMovingPlatform = null;
+      } else {
+        // Check platform collisions only if we're not on the floor
+        let collided = false;
+        
+        for (let platform of platforms) {
+          let platformTop = platform.bottom + platform.height;
+          let platformLeft = platform.left;
+          let platformRight = platform.left + platform.width;
 
-        let charRight = characterX + charWidth;
-        let charBottom = characterY + charHeight;
+          let charRight = characterX + charWidth;
+          let charBottom = characterY + charHeight;
 
-        let overlapsX = characterX < platformRight && charRight > platformLeft;
-        let isFalling = velocityY <= 0;
-        let wasPreviouslyAbove = prevY + charHeight <= platformTop;
-        let isNowTouching = charBottom >= platformTop && charBottom <= platformTop + 10;
+          // Improved collision detection with more precise overlap check
+          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 5;
+          let isFalling = velocityY <= 0;
+          let isNowTouching = charBottom >= platformTop - 5 && charBottom <= platformTop + 10;
 
-        if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
-          characterY = platformTop - charHeight; // Align bottom with platform top
-          velocityY = 0;
-          onGround = true;
-          if (platform.moving) {
-            if (!onMovingPlatform) {
-              platformOffsetX = characterX - platform.left;
+          if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
+            characterY = platformTop - charHeight; // Align character with platform top
+            velocityY = 0;
+            onGround = true;
+            collided = true;
+            
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
+              onMovingPlatform = platform;
+            } else {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
             }
-            onMovingPlatform = platform;
-          } else {
-            onMovingPlatform = null;
-            platformOffsetX = 0;
+            
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              scrollPaused = true;
+            }
+            
+            break;
           }
-          if (score % 50 === 0 && platform.width === gameWidth) {
-            scrollPaused = true;
-          }
-          break;
         }
-      }
-
-      // Fallback ground check (only trigger game over)
-      if (characterY < -charHeight && !scrollPaused) {
-        characterY = -charHeight; // Prevent falling further
-        gameOver = true;
-        document.getElementById('game-over').style.display = 'block';
+        
+        if (!collided) {
+          onGround = false;
+        }
       }
 
       if (keys.left && !keys.right) lastDirection = -1;
@@ -491,7 +516,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 150;
-      characterY = lowestPlatformTop - charHeight; // Reset to start on the first platform
+      characterY = floorHeight; // Reset to start on the floor
       velocityX = 0;
       velocityY = 0;
       onGround = true;
@@ -514,12 +539,12 @@
 
       platforms.forEach(p => p.element.remove());
       platforms = [
-        createInitialPlatform(50, 100),
-        createInitialPlatform(150, 50),
-        createInitialPlatform(250, 100),
-        createInitialPlatform(350, 50),
-        createInitialPlatform(450, 100),
-        createInitialPlatform(550, 50)
+        createInitialPlatform(70, 100),  // Adjusted height to be above floor
+        createInitialPlatform(170, 50),
+        createInitialPlatform(270, 100),
+        createInitialPlatform(370, 50),
+        createInitialPlatform(470, 100),
+        createInitialPlatform(570, 50)
       ];
 
       requestAnimationFrame(update);
