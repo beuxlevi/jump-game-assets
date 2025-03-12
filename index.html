@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - PNG Pixel Alignment</title>
+  <title>Endless Vertical Jump Game - Stable Platform Landing</title>
   <style>
     body {
       margin: 0;
@@ -113,7 +113,7 @@
 
     // Create initial platforms
     let platforms = [
-      createInitialPlatform(100, 100), // Increased to 100px to ensure clear jump progression
+      createInitialPlatform(100, 100),
       createInitialPlatform(200, 50),
       createInitialPlatform(300, 100),
       createInitialPlatform(400, 50),
@@ -348,12 +348,11 @@
         keys.jump = false;
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
-        console.log("Jump triggered", { jumpStrength, characterY, onGround });
+        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
       }
 
       // Apply gravity and update position
       velocityY += gravity;
-      if (Math.abs(velocityY) < 0.1) velocityY = 0;
       characterY += velocityY;
       console.log("After gravity", { characterY, velocityY, onGround });
 
@@ -365,17 +364,17 @@
           onGround = true;
           onMovingPlatform = null;
           platformOffsetX = 0;
-          console.log("Landed on floor", { characterY, onGround });
+          console.log("Landed on floor", { characterY, onGround, velocityY });
         } else {
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
           console.log("Game Over (hit floor after scroll)", { characterY });
         }
       } else {
-        // Check platform collisions
+        // Primary platform collision check
         let collided = false;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height; // Use full height for initial collision
+          let platformTop = platform.bottom + platform.height; // Use full height for detection
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -383,11 +382,11 @@
           let charBottom = characterY + charHeight;
 
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 10; // Widened tolerance
+          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 5; // Tightened tolerance
           let isFalling = velocityY <= 0;
-          let isNowTouching = charBottom >= platformTop - 10 && charBottom <= platformTop + 10; // Widened tolerance
+          let isNowTouching = charBottom >= platformTop - 5 && charBottom <= platformTop + 5; // Tightened tolerance
 
-          console.log("Collision Check", {
+          console.log("Primary Collision Check", {
             platformTop,
             charBottom,
             overlapsX,
@@ -395,11 +394,11 @@
             isFalling,
             isNowTouching,
             characterY,
-            platform: platform.bottom
+            platformBottom: platform.bottom
           });
 
           if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Align with visible top
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight upward buffer
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -415,44 +414,45 @@
             if (score % 50 === 0 && platform.width === gameWidth) {
               scrollPaused = true;
             }
-            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+            console.log("Landed on platform (primary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
             break;
           }
         }
-        if (!collided) {
-          onGround = false;
-        }
-      }
 
-      // Secondary check for falling through (wider tolerance)
-      if (!onGround && velocityY <= 0) {
-        for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height;
-          let platformLeft = platform.left;
-          let platformRight = platform.left + platform.width;
+        // Secondary platform collision check (fallback)
+        if (!collided && velocityY <= 0) {
+          for (let platform of platforms) {
+            let platformTop = platform.bottom + platform.height;
+            let platformLeft = platform.left;
+            let platformRight = platform.left + platform.width;
 
-          let charRight = characterX + charWidth;
-          let charBottom = characterY + charHeight;
+            let charRight = characterX + charWidth;
+            let charBottom = characterY + charHeight;
 
-          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-          let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20; // Wider tolerance for falling
+            let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+            let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20; // Wider tolerance
 
-          if (overlapsX && isNowTouching) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight;
-            velocityY = 0;
-            onGround = true;
-            if (platform.moving) {
-              if (!onMovingPlatform) {
-                platformOffsetX = characterX - platform.left;
+            if (overlapsX && isNowTouching) {
+              characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight upward buffer
+              velocityY = 0;
+              onGround = true;
+              if (platform.moving) {
+                if (!onMovingPlatform) {
+                  platformOffsetX = characterX - platform.left;
+                }
+                onMovingPlatform = platform;
+              } else {
+                onMovingPlatform = null;
+                platformOffsetX = 0;
               }
-              onMovingPlatform = platform;
-            } else {
-              onMovingPlatform = null;
-              platformOffsetX = 0;
+              console.log("Landed on platform (secondary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+              break;
             }
-            console.log("Secondary landing on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
-            break;
           }
+        }
+
+        if (!collided && !onGround) {
+          onGround = false;
         }
       }
 
