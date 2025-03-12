@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed with PNG Alignment</title>
+  <title>Endless Vertical Jump Game - PNG Pixel Alignment</title>
   <style>
     body {
       margin: 0;
@@ -43,11 +43,10 @@
     .platform {
       position: absolute;
       width: 200px;
-      height: 67px;
+      height: 67px; /* Full PNG height for styling */
       background-size: contain;
       background-repeat: no-repeat;
       background-position: center;
-      background-color: #808080; /* Fallback color if PNG fails */
       z-index: 5;
     }
 
@@ -93,6 +92,7 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
+    const visiblePlatformHeight = 30; // Estimated height of visible platform surface (adjust if needed)
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -103,9 +103,12 @@
       platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
+      if (!platform.style.backgroundImage) {
+        console.error("Platform image failed to load for type:", { slow, icy });
+      }
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      return { bottom, left, width: 200, height: 67, element: platform, passed: false, moving, speed, icy, slow };
+      return { bottom, left, width: 200, height: 67, visibleHeight: visiblePlatformHeight, element: platform, passed: false, moving, speed, icy, slow };
     }
 
     // Create initial platforms
@@ -270,7 +273,7 @@
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, element: newPlatform, passed: false, moving, speed, icy, slow };
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
     // Update platforms and score
@@ -304,7 +307,7 @@
       }
 
       platforms.forEach(p => {
-        const platformTop = p.bottom + p.height;
+        const platformTop = p.bottom + p.visibleHeight; // Use visible height for scoring
         if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
@@ -354,19 +357,25 @@
       characterY += velocityY;
       console.log("After gravity", { characterY, velocityY });
 
-      // Floor collision check (bottom of screen)
+      // Floor collision check (only before scrolling)
       if (characterY <= 0) {
-        characterY = 0;
-        velocityY = 0;
-        onGround = true;
-        onMovingPlatform = null;
-        platformOffsetX = 0;
-        console.log("Landed on floor", { characterY });
+        if (!scrolling) {
+          characterY = 0;
+          velocityY = 0;
+          onGround = true;
+          onMovingPlatform = null;
+          platformOffsetX = 0;
+          console.log("Landed on floor", { characterY });
+        } else {
+          gameOver = true;
+          document.getElementById('game-over').style.display = 'block';
+          console.log("Game Over (hit floor after scroll)", { characterY });
+        }
       } else {
         // Check platform collisions
         let collided = false;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height;
+          let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for collision
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -376,7 +385,7 @@
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let wasPreviouslyAbove = prevY + charHeight <= platformTop + 5;
           let isFalling = velocityY <= 0;
-          let isNowTouching = charBottom >= platformTop - 5 && charBottom <= platformTop + 5; // Tightened tolerance
+          let isNowTouching = charBottom >= platformTop - 5 && charBottom <= platformTop + 5;
 
           console.log("Collision Check", {
             platformTop,
@@ -389,7 +398,7 @@
           });
 
           if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
-            characterY = platformTop - charHeight; // Precise alignment with platform top
+            characterY = platformTop - charHeight; // Align with visible top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -418,7 +427,7 @@
       if (characterY < -charHeight) {
         gameOver = true;
         document.getElementById('game-over').style.display = 'block';
-        console.log("Game Over", { characterY });
+        console.log("Game Over (below screen)", { characterY });
       }
 
       // Horizontal movement
@@ -441,7 +450,7 @@
             if (velocityX < 0) velocityX = 0;
           } else if (velocityX < 0) {
             velocityX += blueSlide;
-            if (velocityY > 0) velocityX = 0; // Fixed typo from velocityY to velocityX
+            if (velocityX > 0) velocityX = 0;
           }
         } else {
           velocityX = 0;
