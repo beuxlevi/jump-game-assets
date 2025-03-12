@@ -276,7 +276,11 @@
     function updatePlatforms() {
       if (gameOver) return;
 
-      if (characterY > scrollThreshold) scrolling = true;
+      if (characterY > scrollThreshold) {
+        scrolling = true;
+      } else {
+        scrolling = false; // Ensure scrolling is false until character moves up
+      }
 
       if (scrolling && !gameOver && !scrollPaused) {
         currentScrollSpeed = baseScrollSpeed;
@@ -305,7 +309,7 @@
 
       platforms.forEach(p => {
         const platformTop = p.bottom + p.height;
-        if (characterY > platformTop && !p.passed) {
+        if (characterY > platform-  platformTop && !p.passed) {
           score += 1;
           p.passed = true;
           document.getElementById('score').textContent = `Score: ${score}`;
@@ -333,7 +337,7 @@
 
       let prevY = characterY;
 
-      console.log("Frame Update", { characterX, characterY, velocityY, onGround, keys });
+      console.log("Frame Update", { characterX, characterY, velocityY, onGround, keys, scrolling });
 
       // Handle jump immediately
       if (keys.jump && onGround) {
@@ -422,11 +426,14 @@
         onGround = true;
         onMovingPlatform = null;
         platformOffsetX = 0;
-        console.log("Landed on ground:", { characterY, onGround });
-        if (scrolling && !scrollPaused) {
-          gameOver = true;
-          document.getElementById('game-over').style.display = 'block';
-        }
+        console.log("Landed on ground:", { characterY, onGround, scrolling });
+      }
+
+      // Game over condition: only trigger after scrolling has started and character falls too far
+      if (characterY < -charHeight && scrolling && !scrollPaused) {
+        gameOver = true;
+        document.getElementById('game-over').style.display = 'block';
+        console.log("Game Over triggered", { characterY, scrolling, scrollPaused });
       }
 
       if (keys.left && !keys.right) lastDirection = -1;
@@ -479,11 +486,6 @@
       if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
 
       onGround = false;
-
-      if (characterY < -charHeight && !scrollPaused) {
-        gameOver = true;
-        document.getElementById('game-over').style.display = 'block';
-      }
 
       const character = document.getElementById('character');
       character.style.bottom = characterY + 'px';
@@ -564,6 +566,8 @@
         createInitialPlatform(450, 100),
         createInitialPlatform(550, 50)
       ];
+
+      console.log("Game Reset", { characterX, characterY, onGround, scrolling });
 
       requestAnimationFrame(update);
     }
