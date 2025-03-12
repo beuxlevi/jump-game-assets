@@ -112,10 +112,7 @@
 
     // Game variables
     let characterX = 190;
-    // Align character with the second-to-top pixel of the lowest platform (bottom: 50, height: 67)
-    const lowestPlatformTop = 50 + 67; // platformTop = 117
-    const lowestPlatformSecondTop = lowestPlatformTop - 1; // 116
-    let characterY = lowestPlatformSecondTop - 100; // 116 - 100 = 16
+    let characterY = -50; // Start on the first platform (bottom: 50px, height: 67px)
     let velocityX = 0;
     let velocityY = 0;
     let gravity = -0.5;
@@ -276,11 +273,7 @@
     function updatePlatforms() {
       if (gameOver) return;
 
-      if (characterY > scrollThreshold) {
-        scrolling = true;
-      } else {
-        scrolling = false; // Ensure scrolling is false until character moves up
-      }
+      if (characterY > scrollThreshold) scrolling = true;
 
       if (scrolling && !gameOver && !scrollPaused) {
         currentScrollSpeed = baseScrollSpeed;
@@ -309,7 +302,7 @@
 
       platforms.forEach(p => {
         const platformTop = p.bottom + p.height;
-        if (characterY > platform-  platformTop && !p.passed) {
+        if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
           document.getElementById('score').textContent = `Score: ${score}`;
@@ -337,7 +330,7 @@
 
       let prevY = characterY;
 
-      console.log("Frame Update", { characterX, characterY, velocityY, onGround, keys, scrolling });
+      console.log("Frame Update", { characterX, characterY, velocityY, onGround, keys });
 
       // Handle jump immediately
       if (keys.jump && onGround) {
@@ -354,7 +347,7 @@
         keys.jump = false; // Reset jump key immediately
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
-        console.log("Jump triggered", { jumpStrength, characterY, onGround });
+        console.log("Jump triggered", { jumpStrength, characterY });
       }
 
       // Apply gravity and update position first
@@ -365,7 +358,6 @@
       // Check collision after updating position
       for (let platform of platforms) {
         let platformTop = platform.bottom + platform.height;
-        let platformSecondTop = platformTop - 1; // Second-to-top pixel of the platform
         let platformLeft = platform.left;
         let platformRight = platform.left + platform.width;
 
@@ -374,48 +366,41 @@
 
         let overlapsX = characterX < platformRight && charRight > platformLeft;
         let isFalling = velocityY <= 0;
-        let isRising = velocityY > 0;
-        let nearSecondTop = Math.abs(charBottom - platformSecondTop) <= 1; // Within 1px of second-to-top
+        let nearPlatform = charBottom <= platformTop + 30 && charBottom >= platformTop - 30;
+        let distanceToPlatform = charBottom - platformTop;
 
         console.log("Collision Check", {
           platformBottom: platform.bottom,
           platformTop,
-          platformSecondTop,
           charBottom,
-          distanceToSecondTop: charBottom - platformSecondTop,
+          distanceToPlatform,
           overlapsX,
           isFalling,
-          isRising,
-          nearSecondTop,
+          nearPlatform,
           velocityY,
           prevY,
           elementExists: !!platform.element.parentNode,
           domBottom: platform.element.style.bottom
         });
 
-        if (overlapsX) {
-          if (isRising && charBottom > platformTop) {
-            // Allow passing through when jumping upward
-            continue;
-          } else if (isFalling && nearSecondTop && platform.element.parentNode) {
-            console.log("Collision Detected", { characterY, charBottom, platformSecondTop, platformBottom: platform.bottom, velocityY });
-            characterY = platformSecondTop - charHeight; // Align bottom with second-to-top pixel
-            velocityY = 0;
-            onGround = true;
-            if (platform.moving) {
-              if (!onMovingPlatform) {
-                platformOffsetX = characterX - platform.left;
-              }
-              onMovingPlatform = platform;
-            } else {
-              onMovingPlatform = null;
-              platformOffsetX = 0;
+        if (overlapsX && isFalling && nearPlatform && platform.element.parentNode) {
+          console.log("Collision Detected", { characterY, charBottom, platformTop, platformBottom: platform.bottom, velocityY });
+          characterY = platformTop - charHeight; // Align bottom with platform top
+          velocityY = 0;
+          onGround = true;
+          if (platform.moving) {
+            if (!onMovingPlatform) {
+              platformOffsetX = characterX - platform.left;
             }
-            if (score % 50 === 0 && platform.width === gameWidth) {
-              scrollPaused = true;
-            }
-            break;
+            onMovingPlatform = platform;
+          } else {
+            onMovingPlatform = null;
+            platformOffsetX = 0;
           }
+          if (score % 50 === 0 && platform.width === gameWidth) {
+            scrollPaused = true;
+          }
+          break;
         }
       }
 
@@ -426,14 +411,11 @@
         onGround = true;
         onMovingPlatform = null;
         platformOffsetX = 0;
-        console.log("Landed on ground:", { characterY, onGround, scrolling });
-      }
-
-      // Game over condition: only trigger after scrolling has started and character falls too far
-      if (characterY < -charHeight && scrolling && !scrollPaused) {
-        gameOver = true;
-        document.getElementById('game-over').style.display = 'block';
-        console.log("Game Over triggered", { characterY, scrolling, scrollPaused });
+        console.log("Landed on ground:", { characterY });
+        if (scrolling && !scrollPaused) {
+          gameOver = true;
+          document.getElementById('game-over').style.display = 'block';
+        }
       }
 
       if (keys.left && !keys.right) lastDirection = -1;
@@ -487,6 +469,11 @@
 
       onGround = false;
 
+      if (characterY < -charHeight && !scrollPaused) {
+        gameOver = true;
+        document.getElementById('game-over').style.display = 'block';
+      }
+
       const character = document.getElementById('character');
       character.style.bottom = characterY + 'px';
       character.style.left = characterX + 'px';
@@ -507,7 +494,7 @@
       ) {
         event.preventDefault();
         keys.jump = true;
-        console.log("Jump key pressed", { keys, onGround });
+        console.log("Jump key pressed", { keys });
       }
 
       if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
@@ -536,7 +523,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 190;
-      characterY = lowestPlatformSecondTop - 100; // Reset to start on the first platform
+      characterY = -50; // Reset to start on the first platform
       velocityX = 0;
       velocityY = 0;
       onGround = true;
@@ -566,8 +553,6 @@
         createInitialPlatform(450, 100),
         createInitialPlatform(550, 50)
       ];
-
-      console.log("Game Reset", { characterX, characterY, onGround, scrolling });
 
       requestAnimationFrame(update);
     }
