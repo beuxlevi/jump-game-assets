@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Level 50+ Landing</title>
+  <title>Endless Vertical Jump Game - Fixed Platform Width and Early Landing</title>
   <style>
     body {
       margin: 0;
@@ -42,7 +42,7 @@
 
     .platform {
       position: absolute;
-      width: 120px; /* Adjusted to approximate visible PNG width */
+      width: 100px; /* Adjusted to approximate visible PNG width */
       height: 67px; /* Full PNG height for styling */
       background-size: contain;
       background-repeat: no-repeat;
@@ -93,8 +93,9 @@
     const charWidth = 100;
     const charHeight = 100;
     const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
-    const platformVisibleWidth = 120; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 5; // Buffer for raycast collision
+    const platformVisibleWidth = 100; // Adjusted to approximate visible PNG width
+    const collisionBuffer = 2; // Reduced for more precise collision detection
+    const landingThreshold = 2; // Threshold for precise landing
     const maxVerticalSpacing = 150; // Cap maximum vertical spacing to prevent large gaps
 
     // Initial platform setup
@@ -391,6 +392,7 @@
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let isFalling = velocityY <= 0;
           let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
+          let closeToPlatform = Math.abs(currentBottom - platformTop) <= landingThreshold; // Ensure landing only when very close
           let verticalDiff = Math.abs(prevBottom - platformTop);
 
           console.log("Collision Check", {
@@ -400,6 +402,7 @@
             overlapsX,
             isFalling,
             intersectsPlatform,
+            closeToPlatform,
             verticalDiff,
             characterY,
             nextY,
@@ -408,7 +411,7 @@
             platformWidth: platform.width
           });
 
-          if (overlapsX && isFalling && intersectsPlatform && verticalDiff < minVerticalDiff) {
+          if (overlapsX && isFalling && intersectsPlatform && closeToPlatform && verticalDiff < minVerticalDiff) {
             minVerticalDiff = verticalDiff;
             landedPlatform = platform;
             collided = true;
