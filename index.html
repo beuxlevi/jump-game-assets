@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Reverted and Adjusted Platform Width</title>
+  <title>Endless Vertical Jump Game - Fixed Width and Premature Landing</title>
   <style>
     body {
       margin: 0;
@@ -42,7 +42,7 @@
 
     .platform {
       position: absolute;
-      width: 100px; /* Adjusted to approximate visible PNG width */
+      width: 150px; /* Display width for PNG */
       height: 67px; /* Full PNG height for styling */
       background-size: contain;
       background-repeat: no-repeat;
@@ -93,9 +93,9 @@
     const charWidth = 100;
     const charHeight = 100;
     const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
-    const platformVisibleWidth = 100; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 5; // Reverted to original value for reliable landing
-    const maxVerticalSpacing = 150; // Cap maximum vertical spacing to prevent large gaps
+    const platformVisibleWidth = 100; // Collision width (matches visible grassy area)
+    const platformDisplayWidth = 150; // Display width for PNG
+    const collisionBuffer = 5; // Buffer for raycast collision
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -181,7 +181,7 @@
     function generatePlatform() {
       const stage = getStage();
       const highestPlatform = platforms[platforms.length - 1];
-      const verticalSpacing = Math.min(baseVerticalSpacing + stage * verticalSpacingIncrease, maxVerticalSpacing); // Cap vertical spacing
+      const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
       const maxJumpDistance = baseMaxJumpDistance + stage * horizontalDistanceIncrease;
       const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
@@ -271,7 +271,7 @@
       newPlatform.className = 'platform';
       newPlatform.style.bottom = newBottom + 'px';
       newPlatform.style.left = newLeft + 'px';
-      newPlatform.style.width = newWidth + 'px';
+      newPlatform.style.width = newWidth === gameWidth ? newWidth + 'px' : platformDisplayWidth + 'px'; // Use display width for styling
       newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
@@ -346,7 +346,7 @@
         }
         velocityY = jumpStrength;
         onGround = false; // Ensure onGround is false when jumping
-        onMovingPlatform = null; // Clear moving platform on jump
+        onMovingPlatform = null;
         platformOffsetX = 0;
         keys.jump = false;
         directionHoldStart = null;
@@ -379,9 +379,9 @@
       } else {
         // Raycast-like platform collision check
         let collided = false;
-        let landedPlatform = null;
-        let minVerticalDiff = Infinity;
-        for (let platform of platforms) {
+        // Sort platforms by bottom in descending order (highest to lowest)
+        let sortedPlatforms = [...platforms].sort((a, b) => b.bottom - a.bottom);
+        for (let platform of sortedPlatforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
@@ -391,7 +391,7 @@
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let isFalling = velocityY <= 0;
           let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
-          let verticalDiff = Math.abs(prevBottom - platformTop);
+          let belowCharacter = prevBottom > platformTop; // Only consider platforms below the character
 
           console.log("Collision Check", {
             platformTop,
@@ -400,7 +400,7 @@
             overlapsX,
             isFalling,
             intersectsPlatform,
-            verticalDiff,
+            belowCharacter,
             characterY,
             nextY,
             velocityY,
@@ -408,31 +408,30 @@
             platformWidth: platform.width
           });
 
-          if (overlapsX && isFalling && intersectsPlatform && verticalDiff < minVerticalDiff) {
-            minVerticalDiff = verticalDiff;
-            landedPlatform = platform;
+          if (overlapsX && isFalling && intersectsPlatform && belowCharacter) {
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
+            velocityY = 0;
+            onGround = true;
             collided = true;
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
+              onMovingPlatform = platform;
+            } else {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
+            }
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              scrollPaused = true;
+            }
+            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight, platformWidth: platform.width });
+            break;
           }
         }
 
-        if (collided && landedPlatform) {
-          characterY = (landedPlatform.bottom + landedPlatform.visibleHeight) - charHeight; // Snap to visible top
-          velocityY = 0;
-          onGround = true;
-          if (landedPlatform.moving) {
-            if (!onMovingPlatform) {
-              platformOffsetX = characterX - landedPlatform.left;
-            }
-            onMovingPlatform = landedPlatform;
-          } else {
-            onMovingPlatform = null;
-            platformOffsetX = 0;
-          }
-          if (score % 50 === 0 && landedPlatform.width === gameWidth) {
-            scrollPaused = true;
-          }
-          console.log("Landed on platform", { characterY, platformTop: landedPlatform.bottom + landedPlatform.visibleHeight, platformWidth: landedPlatform.width });
-        } else {
+        // Update position only if no collision
+        if (!collided) {
           characterY = nextY;
           onGround = false;
         }
@@ -462,7 +461,7 @@
         if (onMovingPlatform && onMovingPlatform.icy) {
           if (velocityX > 0) {
             velocityX -= blueSlide;
-            if (velocityX < 0) velocityX = 0;
+            if (velocityX < 0) velocityXAltair = 0;
           } else if (velocityX < 0) {
             velocityX += blueSlide;
             if (velocityX > 0) velocityX = 0;
