@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Proper Platform Landing</title>
+  <title>Endless Vertical Jump Game - Restore Platforms</title>
   <style>
     body {
       margin: 0;
@@ -48,6 +48,7 @@
       background-repeat: no-repeat;
       background-position: center;
       z-index: 5;
+      border: 1px solid red; /* Temporary border to debug visibility */
     }
 
     #game-over {
@@ -104,9 +105,10 @@
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       if (!platform.style.backgroundImage) {
-        console.error("Platform image failed to load for type:", { slow, icy });
+        console.error("Platform image failed to load for type:", { bottom, left, slow, icy });
       }
       document.getElementById('game').appendChild(platform);
+      console.log("Platform created", { bottom, left, moving, icy, slow, element: platform });
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
       return { bottom, left, width: 200, height: 67, visibleHeight: visiblePlatformHeight, element: platform, passed: false, moving, speed, icy, slow };
     }
@@ -120,6 +122,7 @@
       createInitialPlatform(500, 100),
       createInitialPlatform(600, 50)
     ];
+    console.log("Initial platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
 
     // Game variables
     let characterX = 150;
@@ -194,7 +197,7 @@
         consecutiveBrowns = 0;
       } else {
         const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + 200);
-        const maxLeft = Mathани: min(gameWidth - 200, highestPlatform.left + maxJumpDistance - 200);
+        const maxLeft = Math.min(gameWidth - 200, highestPlatform.left + maxJumpDistance - 200);
         newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
         newWidth = 200;
         const movingChance = Math.min(0 + stage * 0.2, 0.8);
@@ -264,16 +267,8 @@
         }
       }
 
-      const newPlatform = document.createElement('div');
-      newPlatform.className = 'platform';
-      newPlatform.style.bottom = newBottom + 'px';
-      newPlatform.style.left = newLeft + 'px';
-      newPlatform.style.width = newWidth + 'px';
-      newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
-                                         (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
-                                               'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
-      document.getElementById('game').appendChild(newPlatform);
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
+      const newPlatform = createInitialPlatform(newBottom, newLeft, moving, icy, slow);
+      return newPlatform;
     }
 
     // Update platforms and score
@@ -290,6 +285,7 @@
         }
 
         platforms.forEach(p => {
+          const prevBottom = p.bottom;
           p.bottom -= currentScrollSpeed;
           if (p.moving) {
             p.left += p.speed;
@@ -303,11 +299,12 @@
             p.element.style.left = p.left + 'px';
           }
           p.element.style.bottom = p.bottom + 'px';
+          console.log("Platform updated", { id: platforms.indexOf(p), prevBottom, newBottom: p.bottom, left: p.left });
         });
       }
 
       platforms.forEach(p => {
-        const platformTop = p.bottom + p.visibleHeight; // Use visible height for scoring
+        const platformTop = p.bottom + p.visibleHeight;
         if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
@@ -317,14 +314,19 @@
 
       const lowestPlatform = platforms[0];
       if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
+        console.log("Removing lowest platform", { bottom: lowestPlatform.bottom });
         lowestPlatform.element.remove();
         platforms.shift();
       }
 
       const highestPlatform = platforms[platforms.length - 1];
       if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
-        platforms.push(generatePlatform());
+        const newPlatform = generatePlatform();
+        platforms.push(newPlatform);
+        console.log("Spawned new platform", { bottom: newPlatform.bottom, left: newPlatform.left });
       }
+
+      console.log("Current platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
     }
 
     // Game loop
@@ -338,7 +340,7 @@
         let jumpStrength = baseJumpStrength;
         if (directionHoldStart !== null) {
           const holdTime = Date.now() - directionHoldStart;
-          const holdFraction = Math.min(holdTime / maxHoldTime | 0);
+          const holdFraction = Math.min(holdTime / maxHoldTime, 1);
           jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
         }
         velocityY = jumpStrength;
@@ -374,7 +376,7 @@
         // Primary platform collision check (only when falling)
         let collided = false;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height; // Use full height for detection
+          let platformTop = platform.bottom + platform.height;
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -401,7 +403,7 @@
           });
 
           if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight buffer
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1;
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -433,10 +435,10 @@
             let charBottom = characterY + charHeight;
 
             let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-            let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20; // Wider tolerance
+            let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20;
 
             if (overlapsX && isNowTouching) {
-              characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight buffer
+              characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1;
               velocityY = 0;
               onGround = true;
               if (platform.moving) {
@@ -562,7 +564,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 150;
-      characterY = 0; // Reset to bottom of screen
+      characterY = 0;
       velocityX = 0;
       velocityY = 0;
       onGround = true;
@@ -592,6 +594,7 @@
         createInitialPlatform(500, 100),
         createInitialPlatform(600, 50)
       ];
+      console.log("Platforms after reset:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
 
       requestAnimationFrame(update);
     }
