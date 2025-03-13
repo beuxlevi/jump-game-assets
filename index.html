@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Restore Platforms</title>
+  <title>Endless Vertical Jump Game - Predictive Platform Landing</title>
   <style>
     body {
       margin: 0;
@@ -48,7 +48,6 @@
       background-repeat: no-repeat;
       background-position: center;
       z-index: 5;
-      border: 1px solid red; /* Temporary border to debug visibility */
     }
 
     #game-over {
@@ -105,10 +104,9 @@
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       if (!platform.style.backgroundImage) {
-        console.error("Platform image failed to load for type:", { bottom, left, slow, icy });
+        console.error("Platform image failed to load for type:", { slow, icy });
       }
       document.getElementById('game').appendChild(platform);
-      console.log("Platform created", { bottom, left, moving, icy, slow, element: platform });
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
       return { bottom, left, width: 200, height: 67, visibleHeight: visiblePlatformHeight, element: platform, passed: false, moving, speed, icy, slow };
     }
@@ -122,7 +120,6 @@
       createInitialPlatform(500, 100),
       createInitialPlatform(600, 50)
     ];
-    console.log("Initial platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
 
     // Game variables
     let characterX = 150;
@@ -267,8 +264,16 @@
         }
       }
 
-      const newPlatform = createInitialPlatform(newBottom, newLeft, moving, icy, slow);
-      return newPlatform;
+      const newPlatform = document.createElement('div');
+      newPlatform.className = 'platform';
+      newPlatform.style.bottom = newBottom + 'px';
+      newPlatform.style.left = newLeft + 'px';
+      newPlatform.style.width = newWidth + 'px';
+      newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
+                                         (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
+                                               'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
+      document.getElementById('game').appendChild(newPlatform);
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
     // Update platforms and score
@@ -285,7 +290,6 @@
         }
 
         platforms.forEach(p => {
-          const prevBottom = p.bottom;
           p.bottom -= currentScrollSpeed;
           if (p.moving) {
             p.left += p.speed;
@@ -299,12 +303,11 @@
             p.element.style.left = p.left + 'px';
           }
           p.element.style.bottom = p.bottom + 'px';
-          console.log("Platform updated", { id: platforms.indexOf(p), prevBottom, newBottom: p.bottom, left: p.left });
         });
       }
 
       platforms.forEach(p => {
-        const platformTop = p.bottom + p.visibleHeight;
+        const platformTop = p.bottom + p.visibleHeight; // Use visible height for scoring
         if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
@@ -314,28 +317,21 @@
 
       const lowestPlatform = platforms[0];
       if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
-        console.log("Removing lowest platform", { bottom: lowestPlatform.bottom });
         lowestPlatform.element.remove();
         platforms.shift();
       }
 
       const highestPlatform = platforms[platforms.length - 1];
       if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
-        const newPlatform = generatePlatform();
-        platforms.push(newPlatform);
-        console.log("Spawned new platform", { bottom: newPlatform.bottom, left: newPlatform.left });
+        platforms.push(generatePlatform());
       }
-
-      console.log("Current platforms:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
     }
 
     // Game loop
     function update() {
       if (gameOver) return;
 
-      let prevY = characterY;
-
-      // Handle jump only when on ground
+      // Handle jump immediately
       if (keys.jump && onGround) {
         let jumpStrength = baseJumpStrength;
         if (directionHoldStart !== null) {
@@ -353,13 +349,13 @@
         console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
       }
 
-      // Apply gravity and update position
+      // Apply gravity
       velocityY += gravity;
-      characterY += velocityY;
-      console.log("After gravity", { characterY, velocityY, onGround });
+      let nextY = characterY + velocityY; // Predict next position
+      console.log("Before collision", { characterY, nextY, velocityY, onGround });
 
       // Floor collision check (only before scrolling)
-      if (characterY <= 0) {
+      if (nextY <= 0) {
         if (!scrolling) {
           characterY = 0;
           velocityY = 0;
@@ -371,39 +367,39 @@
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
           console.log("Game Over (hit floor after scroll)", { characterY });
+          return;
         }
       } else {
-        // Primary platform collision check (only when falling)
+        // Predictive platform collision check
         let collided = false;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height;
+          let platformTop = platform.bottom + platform.height; // Use full height for detection
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
           let charRight = characterX + charWidth;
           let charBottom = characterY + charHeight;
-          let charTop = characterY;
+          let nextCharBottom = nextY + charHeight;
 
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 10;
-          let isNowTouching = charBottom >= platformTop - 10 && charBottom <= platformTop + 10;
           let isFalling = velocityY <= 0;
+          let willCrossPlatform = charBottom > platformTop && nextCharBottom <= platformTop; // Character crosses platform top while falling
 
-          console.log("Primary Collision Check", {
+          console.log("Collision Check", {
             platformTop,
             charBottom,
-            charTop,
+            nextCharBottom,
             overlapsX,
-            wasPreviouslyAbove,
-            isNowTouching,
             isFalling,
+            willCrossPlatform,
             characterY,
+            nextY,
             velocityY,
             platformBottom: platform.bottom
           });
 
-          if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1;
+          if (overlapsX && isFalling && willCrossPlatform) {
+            characterY = platform.bottom + platform.visibleHeight - charHeight; // Snap to platform's visible top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -412,51 +408,22 @@
                 platformOffsetX = characterX - platform.left;
               }
               onMovingPlatform = platform;
-            } else {
+            }桐
+ else {
               onMovingPlatform = null;
               platformOffsetX = 0;
             }
             if (score % 50 === 0 && platform.width === gameWidth) {
               scrollPaused = true;
             }
-            console.log("Landed on platform (primary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
             break;
           }
         }
 
-        // Secondary platform collision check (fallback for falling)
-        if (!collided && velocityY <= 0) {
-          for (let platform of platforms) {
-            let platformTop = platform.bottom + platform.height;
-            let platformLeft = platform.left;
-            let platformRight = platform.left + platform.width;
-
-            let charRight = characterX + charWidth;
-            let charBottom = characterY + charHeight;
-
-            let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-            let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20;
-
-            if (overlapsX && isNowTouching) {
-              characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1;
-              velocityY = 0;
-              onGround = true;
-              if (platform.moving) {
-                if (!onMovingPlatform) {
-                  platformOffsetX = characterX - platform.left;
-                }
-                onMovingPlatform = platform;
-              } else {
-                onMovingPlatform = null;
-                platformOffsetX = 0;
-              }
-              console.log("Landed on platform (secondary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
-              break;
-            }
-          }
-        }
-
-        if (!collided && !onGround) {
+        // If no collision, update position and set onGround to false
+        if (!collided) {
+          characterY = nextY;
           onGround = false;
         }
       }
@@ -564,7 +531,7 @@
     function resetGame() {
       gameOver = false;
       characterX = 150;
-      characterY = 0;
+      characterY = 0; // Reset to bottom of screen
       velocityX = 0;
       velocityY = 0;
       onGround = true;
@@ -594,7 +561,6 @@
         createInitialPlatform(500, 100),
         createInitialPlatform(600, 50)
       ];
-      console.log("Platforms after reset:", platforms.map(p => ({ bottom: p.bottom, left: p.left })));
 
       requestAnimationFrame(update);
     }
