@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Platform Landing</title>
+  <title>Endless Vertical Jump Game - Proper Platform Landing</title>
   <style>
     body {
       margin: 0;
@@ -93,17 +93,6 @@
     const charWidth = 100;
     const charHeight = 100;
     const visiblePlatformHeight = 30; // Estimated height of visible platform surface
-    const platformHitbox = 20; // Height of the platform collision box
-
-    // Debug mode
-    const debug = false;
-
-    // Debug display
-    function debugLog(...args) {
-      if (debug) {
-        console.log(...args);
-      }
-    }
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -124,7 +113,6 @@
 
     // Create initial platforms
     let platforms = [
-      createInitialPlatform(0, 100), // Ground platform
       createInitialPlatform(100, 100),
       createInitialPlatform(200, 50),
       createInitialPlatform(300, 100),
@@ -162,11 +150,6 @@
     let score = 0;
     let directionHoldStart = null;
     const maxHoldTime = 1000;
-    
-    // Added variables for platform detection
-    let currentPlatform = null;
-    let wasOnPlatform = false;
-    let canJumpThroughPlatform = true;
 
     // Difficulty settings
     const baseVerticalSpacing = 100;
@@ -211,7 +194,7 @@
         consecutiveBrowns = 0;
       } else {
         const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + 200);
-        const maxLeft = Math.min(gameWidth - 200, highestPlatform.left + maxJumpDistance - 200);
+        const maxLeft = Mathани: min(gameWidth - 200, highestPlatform.left + maxJumpDistance - 200);
         newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
         newWidth = 200;
         const movingChance = Math.min(0 + stage * 0.2, 0.8);
@@ -338,5 +321,283 @@
         platforms.shift();
       }
 
-      const highestPlatform
-      
+      const highestPlatform = platforms[platforms.length - 1];
+      if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
+        platforms.push(generatePlatform());
+      }
+    }
+
+    // Game loop
+    function update() {
+      if (gameOver) return;
+
+      let prevY = characterY;
+
+      // Handle jump only when on ground
+      if (keys.jump && onGround) {
+        let jumpStrength = baseJumpStrength;
+        if (directionHoldStart !== null) {
+          const holdTime = Date.now() - directionHoldStart;
+          const holdFraction = Math.min(holdTime / maxHoldTime | 0);
+          jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
+        }
+        velocityY = jumpStrength;
+        onGround = false;
+        onMovingPlatform = null;
+        platformOffsetX = 0;
+        keys.jump = false;
+        directionHoldStart = null;
+        if (scrollPaused) scrollPaused = false;
+        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
+      }
+
+      // Apply gravity and update position
+      velocityY += gravity;
+      characterY += velocityY;
+      console.log("After gravity", { characterY, velocityY, onGround });
+
+      // Floor collision check (only before scrolling)
+      if (characterY <= 0) {
+        if (!scrolling) {
+          characterY = 0;
+          velocityY = 0;
+          onGround = true;
+          onMovingPlatform = null;
+          platformOffsetX = 0;
+          console.log("Landed on floor", { characterY, onGround, velocityY });
+        } else {
+          gameOver = true;
+          document.getElementById('game-over').style.display = 'block';
+          console.log("Game Over (hit floor after scroll)", { characterY });
+        }
+      } else {
+        // Primary platform collision check (only when falling)
+        let collided = false;
+        for (let platform of platforms) {
+          let platformTop = platform.bottom + platform.height; // Use full height for detection
+          let platformLeft = platform.left;
+          let platformRight = platform.left + platform.width;
+
+          let charRight = characterX + charWidth;
+          let charBottom = characterY + charHeight;
+          let charTop = characterY;
+
+          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 10;
+          let isNowTouching = charBottom >= platformTop - 10 && charBottom <= platformTop + 10;
+          let isFalling = velocityY <= 0;
+
+          console.log("Primary Collision Check", {
+            platformTop,
+            charBottom,
+            charTop,
+            overlapsX,
+            wasPreviouslyAbove,
+            isNowTouching,
+            isFalling,
+            characterY,
+            velocityY,
+            platformBottom: platform.bottom
+          });
+
+          if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight buffer
+            velocityY = 0;
+            onGround = true;
+            collided = true;
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
+              onMovingPlatform = platform;
+            } else {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
+            }
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              scrollPaused = true;
+            }
+            console.log("Landed on platform (primary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+            break;
+          }
+        }
+
+        // Secondary platform collision check (fallback for falling)
+        if (!collided && velocityY <= 0) {
+          for (let platform of platforms) {
+            let platformTop = platform.bottom + platform.height;
+            let platformLeft = platform.left;
+            let platformRight = platform.left + platform.width;
+
+            let charRight = characterX + charWidth;
+            let charBottom = characterY + charHeight;
+
+            let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+            let isNowTouching = charBottom >= platformTop - 20 && charBottom <= platformTop + 20; // Wider tolerance
+
+            if (overlapsX && isNowTouching) {
+              characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight buffer
+              velocityY = 0;
+              onGround = true;
+              if (platform.moving) {
+                if (!onMovingPlatform) {
+                  platformOffsetX = characterX - platform.left;
+                }
+                onMovingPlatform = platform;
+              } else {
+                onMovingPlatform = null;
+                platformOffsetX = 0;
+              }
+              console.log("Landed on platform (secondary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+              break;
+            }
+          }
+        }
+
+        if (!collided && !onGround) {
+          onGround = false;
+        }
+      }
+
+      // Game over condition (below screen)
+      if (characterY < -charHeight) {
+        gameOver = true;
+        document.getElementById('game-over').style.display = 'block';
+        console.log("Game Over (below screen)", { characterY });
+      }
+
+      // Horizontal movement
+      if (keys.left && !keys.right) lastDirection = -1;
+      else if (keys.right && !keys.left) lastDirection = 1;
+
+      const currentMaxMoveSpeed = (onGround && onMovingPlatform && onMovingPlatform.slow) ? slowMaxMoveSpeed : maxMoveSpeed;
+      const currentAcceleration = (onGround && onMovingPlatform && onMovingPlatform.slow) ? slowAcceleration : acceleration;
+
+      if (keys.left && !keys.right) {
+        velocityX -= currentAcceleration;
+        if (velocityX < -currentMaxMoveSpeed) velocityX = -currentMaxMoveSpeed;
+      } else if (keys.right && !keys.left) {
+        velocityX += currentAcceleration;
+        if (velocityX > currentMaxMoveSpeed) velocityX = maxMoveSpeed;
+      } else {
+        if (onMovingPlatform && onMovingPlatform.icy) {
+          if (velocityX > 0) {
+            velocityX -= blueSlide;
+            if (velocityX < 0) velocityX = 0;
+          } else if (velocityX < 0) {
+            velocityX += blueSlide;
+            if (velocityX > 0) velocityX = 0;
+          }
+        } else {
+          velocityX = 0;
+        }
+      }
+
+      updatePlatforms();
+
+      // Update character position with platform movement
+      if (onGround && onMovingPlatform) {
+        if (!keys.left && !keys.right && (!onMovingPlatform.icy || velocityX === 0)) {
+          characterX = onMovingPlatform.left + platformOffsetX;
+        } else {
+          characterX += onMovingPlatform.speed;
+          characterX += velocityX;
+          if (onMovingPlatform.icy) {
+            if (characterX < onMovingPlatform.left) characterX = onMovingPlatform.left;
+            if (characterX > onMovingPlatform.left + onMovingPlatform.width - charWidth) {
+              characterX = onMovingPlatform.left + onMovingPlatform.width - charWidth;
+            }
+          }
+          platformOffsetX = characterX - onMovingPlatform.left;
+        }
+      } else {
+        characterX += velocityX;
+      }
+
+      if (characterX < 0) characterX = 0;
+      if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
+
+      const character = document.getElementById('character');
+      character.style.bottom = characterY + 'px';
+      character.style.left = characterX + 'px';
+
+      requestAnimationFrame(update);
+    }
+
+    // Keyboard controls
+    document.addEventListener('keydown', function(event) {
+      if (gameOver && event.code === 'KeyR') {
+        resetGame();
+        return;
+      }
+
+      if ((event.code === 'ArrowUp' || event.code === 'KeyW' || event.code === 'Space') && !gameOver) {
+        event.preventDefault();
+        keys.jump = true;
+      }
+
+      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+        if (!keys.left) directionHoldStart = Date.now();
+        keys.left = true;
+      }
+
+      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+        if (!keys.right) directionHoldStart = Date.now();
+        keys.right = true;
+      }
+    });
+
+    document.addEventListener('keyup', function(event) {
+      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+        keys.left = false;
+        if (!keys.right) directionHoldStart = null;
+      }
+      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+        keys.right = false;
+        if (!keys.left) directionHoldStart = null;
+      }
+    });
+
+    // Reset game function
+    function resetGame() {
+      gameOver = false;
+      characterX = 150;
+      characterY = 0; // Reset to bottom of screen
+      velocityX = 0;
+      velocityY = 0;
+      onGround = true;
+      onMovingPlatform = null;
+      platformOffsetX = 0;
+      scrolling = false;
+      scrollPaused = false;
+      currentScrollSpeed = 0;
+      score = 0;
+      directionHoldStart = null;
+      blueCountStage2 = 0;
+      blueCountStage3 = 0;
+      blueCountStage4 = 0;
+      brownCountStage3 = 0;
+      brownCountStage4 = 0;
+      consecutiveBlues = 0;
+      consecutiveBrowns = 0;
+      document.getElementById('score').textContent = `Score: ${score}`;
+      document.getElementById('game-over').style.display = 'none';
+
+      platforms.forEach(p => p.element.remove());
+      platforms = [
+        createInitialPlatform(100, 100),
+        createInitialPlatform(200, 50),
+        createInitialPlatform(300, 100),
+        createInitialPlatform(400, 50),
+        createInitialPlatform(500, 100),
+        createInitialPlatform(600, 50)
+      ];
+
+      requestAnimationFrame(update);
+    }
+
+    // Start game loop
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
