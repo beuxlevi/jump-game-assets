@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Raycast Platform Landing</title>
+  <title>Endless Vertical Jump Game - Corrected Raycast Landing</title>
   <style>
     body {
       margin: 0;
@@ -94,6 +94,7 @@
     const charHeight = 100;
     const visiblePlatformHeight = 30; // Estimated height of visible platform surface
     const platformVisibleWidth = 180; // Adjusted to approximate visible PNG width
+    const collisionBuffer = 5; // Buffer for raycast collision
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -352,14 +353,15 @@
         console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
       }
 
-      // Apply gravity and update position
+      // Apply gravity
       velocityY += gravity;
       let nextY = characterY + velocityY; // Predict next position
-      characterY = nextY;
-      console.log("After gravity", { characterY, velocityY, onGround, nextY });
+      let prevBottom = prevY + charHeight;
+      let currentBottom = nextY + charHeight;
+      console.log("Before collision", { characterY, nextY, velocityY, onGround, prevBottom, currentBottom });
 
       // Floor collision check (only before scrolling)
-      if (characterY <= 0) {
+      if (nextY <= 0) {
         if (!scrolling) {
           characterY = 0;
           velocityY = 0;
@@ -371,14 +373,13 @@
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
           console.log("Game Over (hit floor after scroll)", { characterY });
+          return;
         }
       } else {
         // Raycast-like platform collision check
         let collided = false;
-        let prevBottom = prevY + charHeight;
-        let currentBottom = characterY + charHeight;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height; // Use full height for detection
+          let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -386,7 +387,7 @@
 
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let isFalling = velocityY <= 0;
-          let intersectsPlatform = prevBottom <= platformTop && currentBottom >= platformTop; // Raycast intersection
+          let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer; // Adjusted raycast
 
           console.log("Collision Check", {
             platformTop,
@@ -396,12 +397,13 @@
             isFalling,
             intersectsPlatform,
             characterY,
+            nextY,
             velocityY,
             platformBottom: platform.bottom
           });
 
           if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Snap to visible top
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -422,7 +424,9 @@
           }
         }
 
+        // Update position only if no collision
         if (!collided) {
+          characterY = nextY;
           onGround = false;
         }
       }
