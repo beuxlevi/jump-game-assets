@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Floating and Landing Issues</title>
+  <title>Endless Vertical Jump Game - Adjusted Landing and Movement</title>
   <style>
     body {
       margin: 0;
@@ -42,7 +42,7 @@
 
     .platform {
       position: absolute;
-      width: 100px; /* Adjusted to match visible grassy area */
+      width: 150px; /* Adjusted to approximate visible PNG width */
       height: 67px; /* Full PNG height for styling */
       background-size: contain;
       background-repeat: no-repeat;
@@ -93,10 +93,8 @@
     const charWidth = 100;
     const charHeight = 100;
     const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
-    const platformVisibleWidth = 100; // Adjusted to match visible grassy area
+    const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
     const collisionBuffer = 5; // Buffer for raycast collision
-    const maxFallDistance = 150; // Limit raycast to platforms within this distance below character
-    const minVerticalOverlap = 5; // Minimum overlap required for landing
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -378,7 +376,7 @@
           return;
         }
       } else {
-        // Raycast-like platform collision check with fall distance and overlap constraints
+        // Raycast-like platform collision check
         let collided = false;
         for (let platform of platforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
@@ -387,11 +385,9 @@
 
           let charRight = characterX + charWidth;
 
-          let overlapsX = characterX < platformRight - 5 && charRight > platformLeft + 5; // Tighter X overlap
+          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let isFalling = velocityY <= 0;
-          let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
-          let fallDistance = prevBottom - platformTop; // Distance to platform below
-          let verticalOverlap = prevBottom - (platformTop + collisionBuffer); // Overlap with platform top
+          let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer; // Adjusted raycast
 
           console.log("Collision Check", {
             platformTop,
@@ -400,15 +396,13 @@
             overlapsX,
             isFalling,
             intersectsPlatform,
-            fallDistance,
-            verticalOverlap,
             characterY,
             nextY,
             velocityY,
             platformBottom: platform.bottom
           });
 
-          if (overlapsX && isFalling && intersectsPlatform && fallDistance >= 0 && fallDistance <= maxFallDistance && verticalOverlap >= minVerticalOverlap) {
+          if (overlapsX && isFalling && intersectsPlatform) {
             characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
             velocityY = 0;
             onGround = true;
