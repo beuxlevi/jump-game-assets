@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Predictive Platform Landing</title>
+  <title>Endless Vertical Jump Game - Adjusted Platform Landing</title>
   <style>
     body {
       margin: 0;
@@ -331,6 +331,8 @@
     function update() {
       if (gameOver) return;
 
+      let prevY = characterY;
+
       // Handle jump immediately
       if (keys.jump && onGround) {
         let jumpStrength = baseJumpStrength;
@@ -340,7 +342,7 @@
           jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
         }
         velocityY = jumpStrength;
-        onGround = false;
+        onGround = false; // Ensure onGround is false when jumping
         onMovingPlatform = null;
         platformOffsetX = 0;
         keys.jump = false;
@@ -349,13 +351,13 @@
         console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
       }
 
-      // Apply gravity
+      // Apply gravity and update position
       velocityY += gravity;
-      let nextY = characterY + velocityY; // Predict next position
-      console.log("Before collision", { characterY, nextY, velocityY, onGround });
+      characterY += velocityY;
+      console.log("After gravity", { characterY, velocityY, onGround });
 
       // Floor collision check (only before scrolling)
-      if (nextY <= 0) {
+      if (characterY <= 0) {
         if (!scrolling) {
           characterY = 0;
           velocityY = 0;
@@ -367,10 +369,9 @@
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
           console.log("Game Over (hit floor after scroll)", { characterY });
-          return;
         }
       } else {
-        // Predictive platform collision check
+        // Primary platform collision check
         let collided = false;
         for (let platform of platforms) {
           let platformTop = platform.bottom + platform.height; // Use full height for detection
@@ -379,27 +380,28 @@
 
           let charRight = characterX + charWidth;
           let charBottom = characterY + charHeight;
-          let nextCharBottom = nextY + charHeight;
+          let charTop = characterY;
 
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+          let wasPreviouslyAbove = prevY + charHeight <= platformTop + 15; // Relaxed tolerance
           let isFalling = velocityY <= 0;
-          let willCrossPlatform = charBottom > platformTop && nextCharBottom <= platformTop; // Character crosses platform top while falling
+          let isNowTouching = charBottom >= platformTop - 10 && charBottom <= platformTop + 15; // Widened tolerance
 
-          console.log("Collision Check", {
+          console.log("Primary Collision Check", {
             platformTop,
             charBottom,
-            nextCharBottom,
+            charTop,
             overlapsX,
+            wasPreviouslyAbove,
             isFalling,
-            willCrossPlatform,
+            isNowTouching,
             characterY,
-            nextY,
             velocityY,
             platformBottom: platform.bottom
           });
 
-          if (overlapsX && isFalling && willCrossPlatform) {
-            characterY = platform.bottom + platform.visibleHeight - charHeight; // Snap to platform's visible top
+          if (overlapsX && isFalling && wasPreviouslyAbove && isNowTouching) {
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight + 1; // Align with visible top, slight upward buffer
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -408,22 +410,19 @@
                 platformOffsetX = characterX - platform.left;
               }
               onMovingPlatform = platform;
-            }桐
- else {
+            } else {
               onMovingPlatform = null;
               platformOffsetX = 0;
             }
             if (score % 50 === 0 && platform.width === gameWidth) {
               scrollPaused = true;
             }
-            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+            console.log("Landed on platform (primary)", { characterY, platformTop: platform.bottom + platform.visibleHeight });
             break;
           }
         }
 
-        // If no collision, update position and set onGround to false
-        if (!collided) {
-          characterY = nextY;
+        if (!collided && !onGround) {
           onGround = false;
         }
       }
@@ -447,7 +446,7 @@
         if (velocityX < -currentMaxMoveSpeed) velocityX = -currentMaxMoveSpeed;
       } else if (keys.right && !keys.left) {
         velocityX += currentAcceleration;
-        if (velocityX > currentMaxMoveSpeed) velocityX = maxMoveSpeed;
+        if (velocityX > currentMaxMoveSpeed) velocityX = currentMaxMoveSpeed;
       } else {
         if (onMovingPlatform && onMovingPlatform.icy) {
           if (velocityX > 0) {
