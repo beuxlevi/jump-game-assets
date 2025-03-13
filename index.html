@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Width and Premature Landing (New Approach)</title>
+  <title>Endless Vertical Jump Game - Fixed Floating and Landing Issues</title>
   <style>
     body {
       margin: 0;
@@ -95,6 +95,8 @@
     const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
     const platformVisibleWidth = 100; // Adjusted to match visible grassy area
     const collisionBuffer = 5; // Buffer for raycast collision
+    const maxFallDistance = 150; // Limit raycast to platforms within this distance below character
+    const minVerticalOverlap = 5; // Minimum overlap required for landing
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -376,11 +378,8 @@
           return;
         }
       } else {
-        // Raycast-like platform collision check with closest platform selection
+        // Raycast-like platform collision check with fall distance and overlap constraints
         let collided = false;
-        let closestPlatform = null;
-        let minDistance = Infinity;
-
         for (let platform of platforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
@@ -388,10 +387,11 @@
 
           let charRight = characterX + charWidth;
 
-          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
+          let overlapsX = characterX < platformRight - 5 && charRight > platformLeft + 5; // Tighter X overlap
           let isFalling = velocityY <= 0;
           let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
-          let distance = prevBottom - platformTop; // Distance from character's bottom to platform top
+          let fallDistance = prevBottom - platformTop; // Distance to platform below
+          let verticalOverlap = prevBottom - (platformTop + collisionBuffer); // Overlap with platform top
 
           console.log("Collision Check", {
             platformTop,
@@ -400,38 +400,34 @@
             overlapsX,
             isFalling,
             intersectsPlatform,
-            distance,
+            fallDistance,
+            verticalOverlap,
             characterY,
             nextY,
             velocityY,
-            platformBottom: platform.bottom,
-            platformWidth: platform.width
+            platformBottom: platform.bottom
           });
 
-          if (overlapsX && isFalling && intersectsPlatform && distance >= 0 && distance < minDistance) {
-            minDistance = distance;
-            closestPlatform = platform;
-          }
-        }
-
-        if (closestPlatform) {
-          characterY = (closestPlatform.bottom + closestPlatform.visibleHeight) - charHeight; // Snap to visible top
-          velocityY = 0;
-          onGround = true;
-          collided = true;
-          if (closestPlatform.moving) {
-            if (!onMovingPlatform) {
-              platformOffsetX = characterX - closestPlatform.left;
+          if (overlapsX && isFalling && intersectsPlatform && fallDistance >= 0 && fallDistance <= maxFallDistance && verticalOverlap >= minVerticalOverlap) {
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
+            velocityY = 0;
+            onGround = true;
+            collided = true;
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
+              onMovingPlatform = platform;
+            } else {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
             }
-            onMovingPlatform = closestPlatform;
-          } else {
-            onMovingPlatform = null;
-            platformOffsetX = 0;
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              scrollPaused = true;
+            }
+            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight });
+            break;
           }
-          if (score % 50 === 0 && closestPlatform.width === gameWidth) {
-            scrollPaused = true;
-          }
-          console.log("Landed on platform", { characterY, platformTop: closestPlatform.bottom + closestPlatform.visibleHeight, platformWidth: closestPlatform.width });
         }
 
         // Update position only if no collision
