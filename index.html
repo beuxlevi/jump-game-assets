@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Platform Width and Early Landing</title>
+  <title>Endless Vertical Jump Game - Reverted and Adjusted Platform Width</title>
   <style>
     body {
       margin: 0;
@@ -94,8 +94,7 @@
     const charHeight = 100;
     const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
     const platformVisibleWidth = 100; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 2; // Reduced for more precise collision detection
-    const landingThreshold = 2; // Threshold for precise landing
+    const collisionBuffer = 5; // Reverted to original value for reliable landing
     const maxVerticalSpacing = 150; // Cap maximum vertical spacing to prevent large gaps
 
     // Initial platform setup
@@ -392,7 +391,6 @@
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let isFalling = velocityY <= 0;
           let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
-          let closeToPlatform = Math.abs(currentBottom - platformTop) <= landingThreshold; // Ensure landing only when very close
           let verticalDiff = Math.abs(prevBottom - platformTop);
 
           console.log("Collision Check", {
@@ -402,7 +400,6 @@
             overlapsX,
             isFalling,
             intersectsPlatform,
-            closeToPlatform,
             verticalDiff,
             characterY,
             nextY,
@@ -411,7 +408,7 @@
             platformWidth: platform.width
           });
 
-          if (overlapsX && isFalling && intersectsPlatform && closeToPlatform && verticalDiff < minVerticalDiff) {
+          if (overlapsX && isFalling && intersectsPlatform && verticalDiff < minVerticalDiff) {
             minVerticalDiff = verticalDiff;
             landedPlatform = platform;
             collided = true;
