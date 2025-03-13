@@ -98,6 +98,138 @@
     let gravity = -0.5;
     const jumpStrength = 12;
     let onGround = false;
-    let
+    let gameOver = false;
+    let keys = { left: false, right: false, jump: false };
+    let gameScrollY = 0;
+    const maxSpeed = 5;
+    const acceleration = 0.2;
+    const platformHeight = 40; // Platform surface height
+    const charWidth = 70;
+    const charHeight = 100;
 
-    
+    function createPlatform(bottom, left) {
+      const platform = document.createElement("div");
+      platform.className = "platform";
+      platform.style.bottom = bottom + "px";
+      platform.style.left = left + "px";
+      platform.style.width = "120px";
+      platform.style.height = "40px";
+      platform.style.backgroundImage =
+        'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)';
+
+      game.appendChild(platform);
+      return { bottom, left, width: 120, height: 40, element: platform };
+    }
+
+    let platforms = [
+      createPlatform(50, 150),
+      createPlatform(150, 100),
+      createPlatform(250, 200),
+      createPlatform(350, 50),
+      createPlatform(450, 150),
+      createPlatform(550, 100)
+    ];
+
+    function update() {
+      if (gameOver) return;
+
+      // Handle movement
+      if (keys.left) velocityX -= acceleration;
+      if (keys.right) velocityX += acceleration;
+
+      // Limit max speed
+      velocityX = Math.max(-maxSpeed, Math.min(maxSpeed, velocityX));
+
+      // Apply movement
+      characterX += velocityX;
+
+      // Apply gravity
+      velocityY += gravity;
+      characterY += velocityY;
+
+      // Keep character inside screen bounds
+      if (characterX < 0) characterX = 0;
+      if (characterX > 330) characterX = 330;
+
+      // Collision detection
+      let landed = false;
+      for (let platform of platforms) {
+        let platformTop = platform.bottom + platformHeight;
+        let platformLeft = platform.left;
+        let platformRight = platform.left + platform.width;
+        let charRight = characterX + charWidth;
+        let charBottom = characterY + charHeight;
+
+        let overlapsX = characterX < platformRight && charRight > platformLeft;
+        let isFalling = velocityY <= 0;
+        let nearPlatform = charBottom >= platform.bottom && charBottom <= platformTop + 5;
+
+        if (overlapsX && isFalling && nearPlatform) {
+          characterY = platformTop - charHeight;
+          velocityY = 0;
+          onGround = true;
+          landed = true;
+          break;
+        }
+      }
+
+      // If no collision, character falls
+      if (!landed) {
+        onGround = false;
+      }
+
+      // Jumping
+      if (keys.jump && onGround) {
+        velocityY = jumpStrength;
+        onGround = false;
+      }
+
+      // Enable screen scrolling upwards
+      if (characterY > gameScrollY + 300) {
+        gameScrollY = characterY - 300;
+        game.style.transform = `translateY(${-gameScrollY}px)`;
+      }
+
+      // Apply character position
+      character.style.bottom = characterY + "px";
+      character.style.left = characterX + "px";
+
+      // Game Over if character falls below screen
+      if (characterY < gameScrollY - 100) {
+        gameOver = true;
+        gameOverScreen.style.display = "block";
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    // Keyboard Controls
+    document.addEventListener("keydown", (event) => {
+      if (gameOver && event.code === "KeyR") resetGame();
+      if (event.code === "ArrowUp" || event.code === "Space") keys.jump = true;
+      if (event.code === "ArrowLeft") keys.left = true;
+      if (event.code === "ArrowRight") keys.right = true;
+    });
+
+    document.addEventListener("keyup", (event) => {
+      if (event.code === "ArrowLeft") keys.left = false;
+      if (event.code === "ArrowRight") keys.right = false;
+    });
+
+    function resetGame() {
+      gameOver = false;
+      characterX = 165;
+      characterY = 50;
+      velocityX = 0;
+      velocityY = 0;
+      onGround = false;
+      gameScrollY = 0;
+      game.style.transform = `translateY(0px)`;
+      gameOverScreen.style.display = "none";
+      requestAnimationFrame(update);
+    }
+
+    requestAnimationFrame(update);
+  </script>
+</body>
+</html>
