@@ -320,12 +320,12 @@
           document.getElementById('score').textContent = `Score: ${score}`;
           console.log("Score incremented", { score, platformTop, characterY });
 
-          // Resume scrolling at score 51
+          // Resume scrolling at score 51 and reset movement state
           if (score === 51 && scrollPaused) {
             scrollPaused = false;
             onMovingPlatform = null;
             platformOffsetX = 0;
-            console.log("Resuming scroll at score 51", { scrollPaused, onMovingPlatform, platformOffsetX });
+            console.log("Resuming scroll at score 51, resetting movement", { scrollPaused, onMovingPlatform, platformOffsetX });
           }
         }
       });
@@ -359,8 +359,6 @@
         }
         velocityY = jumpStrength;
         onGround = false; // Ensure onGround is false when jumping
-        onMovingPlatform = null;
-        platformOffsetX = 0;
         keys.jump = false;
         directionHoldStart = null;
         console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
@@ -379,8 +377,6 @@
           characterY = 0;
           velocityY = 0;
           onGround = true;
-          onMovingPlatform = null;
-          platformOffsetX = 0;
           console.log("Landed on floor", { characterY, onGround, velocityY });
         } else {
           gameOver = true;
@@ -391,10 +387,7 @@
       } else {
         // Raycast-like platform collision check
         let collided = false;
-        // Filter and sort platforms to prioritize those below current position
-        let relevantPlatforms = platforms.filter(p => p.bottom + p.visibleHeight <= currentBottom).sort((a, b) => a.bottom - b.bottom);
-
-        for (let platform of relevantPlatforms) {
+        for (let platform of platforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
@@ -426,14 +419,14 @@
             velocityY = 0;
             onGround = true;
             collided = true;
-            if (platform.moving && !onMovingPlatform) {
-              platformOffsetX = characterX - platform.left;
+            if (platform.moving) {
+              if (!onMovingPlatform) {
+                platformOffsetX = characterX - platform.left;
+              }
               onMovingPlatform = platform;
-              console.log("Landed on moving platform", { characterX, platformLeft, platformOffsetX });
-            } else if (!platform.moving) {
+            } else {
               onMovingPlatform = null;
               platformOffsetX = 0;
-              console.log("Landed on stationary platform", { characterX });
             }
             console.log("Landed on platform", { characterY, platformTop, platformBottom: platform.bottom, platformWidth: platform.width });
             break;
@@ -485,7 +478,8 @@
 
       // Update character position with platform movement
       if (onGround && onMovingPlatform) {
-        characterX = onMovingPlatform.left + platformOffsetX; // Move with platform
+        // Always update with platform movement, then apply player input
+        characterX += onMovingPlatform.speed; // Move with platform
         characterX += velocityX; // Apply player movement
         if (onMovingPlatform.icy) {
           if (characterX < onMovingPlatform.left) characterX = onMovingPlatform.left;
@@ -493,6 +487,7 @@
             characterX = onMovingPlatform.left + onMovingPlatform.width - charWidth;
           }
         }
+        platformOffsetX = characterX - onMovingPlatform.left; // Update offset
       } else {
         characterX += velocityX;
       }
@@ -574,7 +569,7 @@
         createInitialPlatform(400, 50),
         createInitialPlatform(500, 100),
         createInitialPlatform(600, 50)
-      ];
+     ];
 
       requestAnimationFrame(update);
     }
