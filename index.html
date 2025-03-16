@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Floating After Score 50</title>
+  <title>Endless Vertical Jump Game - Fixed Floating with Cross-Screen Platform</title>
   <style>
     body {
       margin: 0;
@@ -92,10 +92,9 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
+    const visiblePlatformHeight = 15; // Adjusted to better match grassy surface (was 20)
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
     const collisionBuffer = 5; // Buffer for raycast collision
-    const landingAdjustment = 1; // Fine-tune landing position if needed
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -183,78 +182,88 @@
       const highestPlatform = platforms[platforms.length - 1];
       const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
       const maxJumpDistance = baseMaxJumpDistance + stage * horizontalDistanceIncrease;
-      const newBottom = Math.round(highestPlatform.bottom + verticalSpacing); // Round to avoid floating-point errors
+      const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
 
-      // Removed the condition for long cross-screen platform at score % 50 === 49
-      const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
-      const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
-      newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
-      newWidth = platformVisibleWidth;
-      const movingChance = Math.min(0 + stage * 0.2, 0.8);
-      moving = Math.random() < movingChance;
-
-      if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0;
-
-      if (stage === 2 && score >= 100 && score < 150) {
-        if (blueCountStage2 < 5 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage2 < 3)) {
-          icy = true;
-          slow = false;
-          blueCountStage2++;
-          consecutiveBlues++;
-          consecutiveBrowns = 0;
-        } else {
-          icy = false;
-          slow = false;
-          consecutiveBlues = 0;
-        }
-      } else if (stage === 3 && score >= 150 && score < 200) {
-        if (blueCountStage3 < 10 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage3 < 5)) {
-          icy = true;
-          slow = false;
-          blueCountStage3++;
-          consecutiveBlues++;
-          consecutiveBrowns = 0;
-        } else if (brownCountStage3 < 5 && consecutiveBrowns < 3 && (Math.random() < 0.25 || brownCountStage3 < 3)) {
-          icy = false;
-          slow = true;
-          brownCountStage3++;
-          consecutiveBrowns++;
-          consecutiveBlues = 0;
-        } else {
-          icy = false;
-          slow = false;
-          consecutiveBlues = 0;
-          consecutiveBrowns = 0;
-        }
-      } else if (stage === 4 && score >= 200 && score < 250) {
-        if (blueCountStage4 < 15 && consecutiveBlues < 3 && (Math.random() < 0.5 || blueCountStage4 < 7)) {
-          icy = true;
-          slow = false;
-          blueCountStage4++;
-          consecutiveBlues++;
-          consecutiveBrowns = 0;
-        } else if (brownCountStage4 < 7 && consecutiveBrowns < 3 && (Math.random() < 0.35 || brownCountStage4 < 4)) {
-          icy = false;
-          slow = true;
-          brownCountStage4++;
-          consecutiveBrowns++;
-          consecutiveBlues = 0;
-        } else {
-          icy = false;
-          slow = false;
-          consecutiveBlues = 0;
-          consecutiveBrowns = 0;
-        }
+      if (score % 50 === 49) {
+        newLeft = 0;
+        newWidth = gameWidth;
+        moving = false;
+        speed = 0;
+        icy = false;
+        slow = false;
+        consecutiveBlues = 0;
+        consecutiveBrowns = 0;
       } else {
-        icy = (score >= 100 && consecutiveBlues < 3 && Math.random() < 0.1);
-        slow = (score >= 150 && !icy && consecutiveBrowns < 3 && Math.random() < 0.1);
-        consecutiveBlues = icy ? consecutiveBlues + 1 : 0;
-        consecutiveBrowns = slow ? consecutiveBrowns + 1 : 0;
+        const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
+        const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
+        newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
+        newWidth = platformVisibleWidth;
+        const movingChance = Math.min(0 + stage * 0.2, 0.8);
+        moving = Math.random() < movingChance;
+
+        if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+        else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0;
+
+        if (stage === 2 && score >= 100 && score < 150) {
+          if (blueCountStage2 < 5 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage2 < 3)) {
+            icy = true;
+            slow = false;
+            blueCountStage2++;
+            consecutiveBlues++;
+            consecutiveBrowns = 0;
+          } else {
+            icy = false;
+            slow = false;
+            consecutiveBlues = 0;
+          }
+        } else if (stage === 3 && score >= 150 && score < 200) {
+          if (blueCountStage3 < 10 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage3 < 5)) {
+            icy = true;
+            slow = false;
+            blueCountStage3++;
+            consecutiveBlues++;
+            consecutiveBrowns = 0;
+          } else if (brownCountStage3 < 5 && consecutiveBrowns < 3 && (Math.random() < 0.25 || brownCountStage3 < 3)) {
+            icy = false;
+            slow = true;
+            brownCountStage3++;
+            consecutiveBrowns++;
+            consecutiveBlues = 0;
+          } else {
+            icy = false;
+            slow = false;
+            consecutiveBlues = 0;
+            consecutiveBrowns = 0;
+          }
+        } else if (stage === 4 && score >= 200 && score < 250) {
+          if (blueCountStage4 < 15 && consecutiveBlues < 3 && (Math.random() < 0.5 || blueCountStage4 < 7)) {
+            icy = true;
+            slow = false;
+            blueCountStage4++;
+            consecutiveBlues++;
+            consecutiveBrowns = 0;
+          } else if (brownCountStage4 < 7 && consecutiveBrowns < 3 && (Math.random() < 0.35 || brownCountStage4 < 4)) {
+            icy = false;
+            slow = true;
+            brownCountStage4++;
+            consecutiveBrowns++;
+            consecutiveBlues = 0;
+          } else {
+            icy = false;
+            slow = false;
+            consecutiveBlues = 0;
+            consecutiveBrowns = 0;
+          }
+        } else {
+          icy = (score >= 100 && consecutiveBlues < 3 && Math.random() < 0.1);
+          slow = (score >= 150 && !icy && consecutiveBrowns < 3 && Math.random() < 0.1);
+          consecutiveBlues = icy ? consecutiveBlues + 1 : 0;
+          consecutiveBrowns = slow ? consecutiveBrowns + 1 : 0;
+        }
       }
 
       const newPlatform = document.createElement('div');
@@ -284,7 +293,6 @@
 
         platforms.forEach(p => {
           p.bottom -= currentScrollSpeed;
-          p.bottom = Math.round(p.bottom); // Round to avoid floating-point errors
           if (p.moving) {
             p.left += p.speed;
             if (p.left <= 0) {
@@ -298,9 +306,6 @@
           }
           p.element.style.bottom = p.bottom + 'px';
         });
-
-        console.log("Platform Positions", platforms.map(p => ({ bottom: p.bottom, left: p.left, width: p.width })));
-        console.log("Current Scroll Speed", currentScrollSpeed);
       }
 
       platforms.forEach(p => {
@@ -320,9 +325,6 @@
 
       const highestPlatform = platforms[platforms.length - 1];
       if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
-        const stage = getStage();
-        const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
-        console.log("Generating Platform", { stage, verticalSpacing, highestBottom: highestPlatform.bottom });
         platforms.push(generatePlatform());
       }
     }
@@ -397,11 +399,12 @@
             characterY,
             nextY,
             velocityY,
-            platformBottom: platform.bottom
+            platformBottom: platform.bottom,
+            visibleHeight: platform.visibleHeight
           });
 
           if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight - landingAdjustment; // Apply landing adjustment
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -413,6 +416,9 @@
             } else {
               onMovingPlatform = null;
               platformOffsetX = 0;
+            }
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              scrollPaused = true;
             }
             console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight, platformBottom: platform.bottom });
             break;
