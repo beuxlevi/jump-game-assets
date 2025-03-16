@@ -197,6 +197,13 @@
         speed = 0;
         icy = false;
         slow = false;
+        // Force score increment when landing on cross-screen platform
+        if (onGround && platforms[platforms.length - 1].bottom === newBottom) {
+          score += 1;
+          platforms[platforms.length - 1].passed = true;
+          document.getElementById('score').textContent = `Score: ${score}`;
+          console.log("Forced score increment to 51 on cross-screen platform", { score, characterY });
+        }
       } else {
         const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
         const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
@@ -323,10 +330,11 @@
           // Resume scrolling at score 51 and reset movement
           if (score === 51 && scrollPaused) {
             scrollPaused = false;
+            scrolling = true; // Ensure scrolling is active
             onMovingPlatform = null;
             platformOffsetX = 0;
-            console.log("Resuming scroll at score 51, resetting movement", { scrollPaused, onMovingPlatform, platformOffsetX });
-            // Generate a new platform immediately to ensure the character has something to land on
+            console.log("Resuming scroll at score 51, resetting movement", { scrollPaused, scrolling, onMovingPlatform, platformOffsetX });
+            // Generate a new platform immediately
             platforms.push(generatePlatform());
             console.log("Generated new platform after resuming scroll at score 51");
           }
@@ -341,16 +349,16 @@
       }
 
       const highestPlatform = platforms[platforms.length - 1];
-      // Modified condition to allow platform generation even during scrollPaused if necessary
       if (highestPlatform.bottom < spawnThreshold) {
         platforms.push(generatePlatform());
       }
       // Fallback: Resume scrolling if character jumps too high
       if (characterY > spawnThreshold && scrollPaused) {
         scrollPaused = false;
+        scrolling = true;
         onMovingPlatform = null;
         platformOffsetX = 0;
-        console.log("Forced scroll resume due to characterY > spawnThreshold", { characterY, spawnThreshold, scrollPaused });
+        console.log("Forced scroll resume due to characterY > spawnThreshold", { characterY, spawnThreshold, scrollPaused, scrolling });
       }
     }
 
