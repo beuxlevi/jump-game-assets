@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Floating and Collision</title>
+  <title>Endless Vertical Jump Game - Fixed Collision and Alignment</title>
   <style>
     body {
       margin: 0;
@@ -92,9 +92,9 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 15; // Adjusted to align with grassy surface
+    const visiblePlatformHeight = 12; // Adjusted to align with grassy surface
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 2; // Reduced to prevent premature collisions
+    const collisionBuffer = 5; // Restored to original value
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -271,10 +271,7 @@
     function updatePlatforms() {
       if (gameOver) return;
 
-      if (characterY > scrollThreshold) {
-        scrolling = true;
-        console.log("Scrolling enabled", { characterY, scrollThreshold });
-      }
+      if (characterY > scrollThreshold) scrolling = true;
 
       if (scrolling && !gameOver) {
         currentScrollSpeed = baseScrollSpeed;
@@ -282,7 +279,6 @@
           const excess = characterY - targetY;
           currentScrollSpeed = Math.min(baseScrollSpeed + excess * 0.05, maxScrollSpeed);
         }
-        console.log("Scrolling platforms", { currentScrollSpeed, characterY, targetY });
 
         platforms.forEach(p => {
           p.bottom -= currentScrollSpeed;
@@ -372,10 +368,10 @@
       } else {
         // Raycast-like platform collision check
         let collided = false;
-        // Sort platforms by bottom position (ascending) to prioritize lower platforms
-        let sortedPlatforms = [...platforms].sort((a, b) => a.bottom - b.bottom);
+        // Filter and sort platforms to prioritize those below current position
+        let relevantPlatforms = platforms.filter(p => p.bottom + p.visibleHeight <= currentBottom).sort((a, b) => a.bottom - b.bottom);
 
-        for (let platform of sortedPlatforms) {
+        for (let platform of relevantPlatforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
@@ -398,6 +394,7 @@
             velocityY,
             platformBottom: platform.bottom,
             platformWidth: platform.width,
+            moving: platform.moving,
             score: score
           });
 
@@ -406,14 +403,14 @@
             velocityY = 0;
             onGround = true;
             collided = true;
-            if (platform.moving) {
-              if (!onMovingPlatform) {
-                platformOffsetX = characterX - platform.left;
-              }
+            if (platform.moving && !onMovingPlatform) {
+              platformOffsetX = characterX - platform.left;
               onMovingPlatform = platform;
-            } else {
+              console.log("Landed on moving platform", { characterX, platformLeft, platformOffsetX });
+            } else if (!platform.moving) {
               onMovingPlatform = null;
               platformOffsetX = 0;
+              console.log("Landed on stationary platform", { characterX });
             }
             console.log("Landed on platform", { characterY, platformTop, platformBottom: platform.bottom, platformWidth: platform.width });
             break;
@@ -465,8 +462,7 @@
 
       // Update character position with platform movement
       if (onGround && onMovingPlatform) {
-        // Always update with platform movement, then apply player input
-        characterX += onMovingPlatform.speed; // Move with platform
+        characterX = onMovingPlatform.left + platformOffsetX; // Move with platform
         characterX += velocityX; // Apply player movement
         if (onMovingPlatform.icy) {
           if (characterX < onMovingPlatform.left) characterX = onMovingPlatform.left;
@@ -474,7 +470,6 @@
             characterX = onMovingPlatform.left + onMovingPlatform.width - charWidth;
           }
         }
-        platformOffsetX = characterX - onMovingPlatform.left; // Update offset
       } else {
         characterX += velocityX;
       }
