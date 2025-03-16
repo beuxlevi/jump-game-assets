@@ -92,7 +92,7 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 20; // Reverted to original value
+    const visiblePlatformHeight = 15; // Adjusted to better match grassy surface
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
     const collisionBuffer = 5; // Buffer for raycast collision
 
@@ -185,7 +185,8 @@
       const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
 
-      if (score % 50 === 49) {
+      // Adjusted condition to ensure wide platform at score 50
+      if (score === 49) {
         console.log("Generating cross-screen platform at score:", score);
         newLeft = 0;
         newWidth = gameWidth;
@@ -316,11 +317,13 @@
           score += 1;
           p.passed = true;
           document.getElementById('score').textContent = `Score: ${score}`;
+          console.log("Score incremented", { score, platformTop, characterY });
         }
       });
 
       const lowestPlatform = platforms[0];
-      if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
+      if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height && lowestPlatform.width !== gameWidth) {
+        console.log("Removing platform", { bottom: lowestPlatform.bottom, width: lowestPlatform.width });
         lowestPlatform.element.remove();
         platforms.shift();
       }
@@ -380,7 +383,18 @@
       } else {
         // Raycast-like platform collision check
         let collided = false;
-        for (let platform of platforms) {
+        // Sort platforms by bottom position (ascending) to prioritize lower platforms
+        let sortedPlatforms = [...platforms].sort((a, b) => a.bottom - b.bottom);
+        // Prioritize wide platform if score is around 50
+        let platformToCheck = sortedPlatforms;
+        if (score >= 49 && score <= 50) {
+          const widePlatform = sortedPlatforms.find(p => p.width === gameWidth);
+          if (widePlatform) {
+            platformToCheck = [widePlatform, ...sortedPlatforms.filter(p => p !== widePlatform)];
+          }
+        }
+
+        for (let platform of platformToCheck) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
@@ -420,7 +434,7 @@
               onMovingPlatform = null;
               platformOffsetX = 0;
             }
-            if (score % 50 === 0 && platform.width === gameWidth) {
+            if (score === 50 && platform.width === gameWidth) {
               scrollPaused = true;
               console.log("Scroll paused on wide platform", { score, platformBottom: platform.bottom });
             }
