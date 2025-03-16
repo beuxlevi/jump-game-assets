@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Post-Score 50 Bug</title>
+  <title>Endless Vertical Jump Game - Fixed Scrolling at Score 50</title>
   <style>
     body {
       margin: 0;
@@ -320,12 +320,15 @@
           document.getElementById('score').textContent = `Score: ${score}`;
           console.log("Score incremented", { score, platformTop, characterY });
 
-          // Resume scrolling at score 51 and reset movement state
+          // Resume scrolling at score 51 and reset movement
           if (score === 51 && scrollPaused) {
             scrollPaused = false;
             onMovingPlatform = null;
             platformOffsetX = 0;
             console.log("Resuming scroll at score 51, resetting movement", { scrollPaused, onMovingPlatform, platformOffsetX });
+            // Generate a new platform immediately to ensure the character has something to land on
+            platforms.push(generatePlatform());
+            console.log("Generated new platform after resuming scroll at score 51");
           }
         }
       });
@@ -338,8 +341,16 @@
       }
 
       const highestPlatform = platforms[platforms.length - 1];
-      if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
+      // Modified condition to allow platform generation even during scrollPaused if necessary
+      if (highestPlatform.bottom < spawnThreshold) {
         platforms.push(generatePlatform());
+      }
+      // Fallback: Resume scrolling if character jumps too high
+      if (characterY > spawnThreshold && scrollPaused) {
+        scrollPaused = false;
+        onMovingPlatform = null;
+        platformOffsetX = 0;
+        console.log("Forced scroll resume due to characterY > spawnThreshold", { characterY, spawnThreshold, scrollPaused });
       }
     }
 
@@ -569,7 +580,7 @@
         createInitialPlatform(400, 50),
         createInitialPlatform(500, 100),
         createInitialPlatform(600, 50)
-     ];
+      ];
 
       requestAnimationFrame(update);
     }
