@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Floating</title>
+  <title>Endless Vertical Jump Game - Fixed Floating and Collision</title>
   <style>
     body {
       margin: 0;
@@ -92,10 +92,9 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 12; // Adjusted to better match grassy surface
+    const visiblePlatformHeight = 15; // Adjusted to align with grassy surface
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 5; // Buffer for raycast collision
-    const landingOffset = -2; // Small offset to fine-tune landing
+    const collisionBuffer = 2; // Reduced to prevent premature collisions
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -143,7 +142,6 @@
     let platformOffsetX = 0;
     let gameOver = false;
     let scrolling = false;
-    let scrollPaused = false; // Removed cross-screen platform logic
     const baseScrollSpeed = 0.5;
     let currentScrollSpeed = 0;
     const scrollThreshold = 200;
@@ -273,18 +271,21 @@
     function updatePlatforms() {
       if (gameOver) return;
 
-      if (characterY > scrollThreshold) scrolling = true;
+      if (characterY > scrollThreshold) {
+        scrolling = true;
+        console.log("Scrolling enabled", { characterY, scrollThreshold });
+      }
 
-      if (scrolling && !gameOver && !scrollPaused) {
+      if (scrolling && !gameOver) {
         currentScrollSpeed = baseScrollSpeed;
         if (characterY > targetY) {
           const excess = characterY - targetY;
           currentScrollSpeed = Math.min(baseScrollSpeed + excess * 0.05, maxScrollSpeed);
         }
+        console.log("Scrolling platforms", { currentScrollSpeed, characterY, targetY });
 
         platforms.forEach(p => {
           p.bottom -= currentScrollSpeed;
-          p.bottom = Math.round(p.bottom); // Round to avoid floating-point errors
           if (p.moving) {
             p.left += p.speed;
             if (p.left <= 0) {
@@ -318,7 +319,7 @@
       }
 
       const highestPlatform = platforms[platforms.length - 1];
-      if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
+      if (highestPlatform.bottom < spawnThreshold) {
         platforms.push(generatePlatform());
       }
     }
@@ -371,7 +372,10 @@
       } else {
         // Raycast-like platform collision check
         let collided = false;
-        for (let platform of platforms) {
+        // Sort platforms by bottom position (ascending) to prioritize lower platforms
+        let sortedPlatforms = [...platforms].sort((a, b) => a.bottom - b.bottom);
+
+        for (let platform of sortedPlatforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
@@ -398,7 +402,7 @@
           });
 
           if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = platformTop - charHeight + landingOffset; // Snap to visible top with offset
+            characterY = platformTop - charHeight; // Snap to visible top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -530,7 +534,6 @@
       onMovingPlatform = null;
       platformOffsetX = 0;
       scrolling = false;
-      scrollPaused = false;
       currentScrollSpeed = 0;
       score = 0;
       directionHoldStart = null;
