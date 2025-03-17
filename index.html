@@ -92,15 +92,16 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
-    const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 5; // Buffer for raycast collision
+    const visiblePlatformHeight = 20; // Approximate visible platform surface height
+    const platformFullHeight = 67;    // Full PNG height
+    const collisionBuffer = 5;        // Buffer for raycast collision
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
       const platform = document.createElement('div');
       platform.className = 'platform';
-      platform.style.bottom = bottom + 'px';
+      // Set bottom to the top of the visible surface for rendering
+      platform.style.bottom = (bottom - (platformFullHeight - visiblePlatformHeight)) + 'px';
       platform.style.left = left + 'px';
       platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
@@ -110,7 +111,7 @@
       }
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      return { bottom, left, width: platformVisibleWidth, height: 67, visibleHeight: visiblePlatformHeight, element: platform, passed: false, moving, speed, icy, slow };
+      return { bottom: bottom, left, width: platformVisibleWidth, height: platformFullHeight, visibleHeight, element: platform, passed: false, moving, speed, icy, slow };
     }
 
     // Create initial platforms
@@ -182,6 +183,7 @@
       const highestPlatform = platforms[platforms.length - 1];
       const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
       const maxJumpDistance = baseMaxJumpDistance + stage * horizontalDistanceIncrease;
+      // Calculate newBottom from the top of the previous platform's visible surface
       const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
 
@@ -268,14 +270,16 @@
 
       const newPlatform = document.createElement('div');
       newPlatform.className = 'platform';
-      newPlatform.style.bottom = newBottom + 'px';
+      // Set bottom to the top of the visible surface for rendering
+      newPlatform.style.bottom = (newBottom - (platformFullHeight - visiblePlatformHeight)) + 'px';
       newPlatform.style.left = newLeft + 'px';
       newPlatform.style.width = newWidth + 'px';
       newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
+      console.log("Platform generated", { score, newBottom, renderedBottom: newBottom - (platformFullHeight - visiblePlatformHeight), newLeft, newWidth, moving, icy, slow });
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: platformFullHeight, visibleHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
     // Update platforms and score
@@ -293,6 +297,7 @@
 
         platforms.forEach(p => {
           p.bottom -= currentScrollSpeed;
+          p.element.style.bottom = (p.bottom - (p.height - p.visibleHeight)) + 'px';
           if (p.moving) {
             p.left += p.speed;
             if (p.left <= 0) {
@@ -304,21 +309,21 @@
             }
             p.element.style.left = p.left + 'px';
           }
-          p.element.style.bottom = p.bottom + 'px';
         });
       }
 
       platforms.forEach(p => {
-        const platformTop = p.bottom + p.visibleHeight; // Use visible height for scoring
+        const platformTop = p.bottom; // Use bottom as the top of the visible surface
         if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
           document.getElementById('score').textContent = `Score: ${score}`;
+          console.log("Score incremented", { score, platformTop, characterY });
         }
       });
 
       const lowestPlatform = platforms[0];
-      if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
+      if (lowestPlatform && lowestPlatform.bottom - (lowestPlatform.height - lowestPlatform.visibleHeight) < -lowestPlatform.height) {
         lowestPlatform.element.remove();
         platforms.shift();
       }
@@ -345,12 +350,12 @@
         }
         velocityY = jumpStrength;
         onGround = false; // Ensure onGround is false when jumping
-        onMovingPlatform = null; // Reset moving platform on jump
-        platformOffsetX = 0; // Reset offset on jump
+        onMovingPlatform = null;
+        platformOffsetX = 0;
         keys.jump = false;
         directionHoldStart = null;
         if (scrollPaused) scrollPaused = false;
-        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY, onMovingPlatform, platformOffsetX });
+        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
       }
 
       // Apply gravity
@@ -358,7 +363,7 @@
       let nextY = characterY + velocityY; // Predict next position
       let prevBottom = prevY + charHeight;
       let currentBottom = nextY + charHeight;
-      console.log("Before collision", { characterY, nextY, velocityY, onGround, prevBottom, currentBottom, onMovingPlatform });
+      console.log("Before collision", { characterY, nextY, velocityY, onGround, prevBottom, currentBottom });
 
       // Floor collision check (only before scrolling)
       if (nextY <= 0) {
@@ -368,7 +373,7 @@
           onGround = true;
           onMovingPlatform = null;
           platformOffsetX = 0;
-          console.log("Landed on floor", { characterY, onGround, velocityY, onMovingPlatform });
+          console.log("Landed on floor", { characterY, onGround, velocityY });
         } else {
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
@@ -376,12 +381,10 @@
           return;
         }
       } else {
-        // Raycast-like platform collision check with sorting
+        // Raycast-like platform collision check
         let collided = false;
-        // Sort platforms by bottom to prioritize lowest platform
-        const sortedPlatforms = [...platforms].sort((a, b) => a.bottom - b.bottom);
-        for (let platform of sortedPlatforms) {
-          let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
+        for (let platform of platforms) {
+          let platformTop = platform.bottom; // Use bottom as the top of the visible surface
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -408,28 +411,23 @@
           });
 
           if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
+            characterY = platformTop - charHeight; // Snap to the top of the visible surface
             velocityY = 0;
             onGround = true;
             collided = true;
             if (platform.moving) {
-              if (!onMovingPlatform || onMovingPlatform !== platform) {
+              if (!onMovingPlatform) {
                 platformOffsetX = characterX - platform.left;
               }
               onMovingPlatform = platform;
-              console.log("Landed on moving platform", { platformBottom: platform.bottom, platformSpeed: platform.speed });
             } else {
               onMovingPlatform = null;
               platformOffsetX = 0;
-              console.log("Landed on static platform", { platformBottom: platform.bottom });
             }
-            // Reset if jumping from cross-screen platform
             if (score % 50 === 0 && platform.width === gameWidth) {
-              onMovingPlatform = null;
-              platformOffsetX = 0;
-              console.log("Reset movement after cross-screen platform", { score, onMovingPlatform, platformOffsetX });
+              scrollPaused = true;
             }
-            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight, onMovingPlatform });
+            console.log("Landed on platform", { characterY, platformTop, platformBottom: platform.bottom, platformWidth: platform.width });
             break;
           }
         }
@@ -438,12 +436,6 @@
         if (!collided) {
           characterY = nextY;
           onGround = false;
-          // Clear onMovingPlatform if no longer overlapping
-          if (onMovingPlatform && !isOverlappingPlatform(characterX, characterY)) {
-            onMovingPlatform = null;
-            platformOffsetX = 0;
-            console.log("Cleared onMovingPlatform due to no overlap", { characterX, characterY, onMovingPlatform });
-          }
         }
       }
 
@@ -495,7 +487,6 @@
           }
         }
         platformOffsetX = characterX - onMovingPlatform.left; // Update offset
-        console.log("Moved with platform", { characterX, platformSpeed: onMovingPlatform.speed, platformLeft: onMovingPlatform.left });
       } else {
         characterX += velocityX;
       }
@@ -508,22 +499,6 @@
       character.style.left = characterX + 'px';
 
       requestAnimationFrame(update);
-    }
-
-    // Helper function to check if character overlaps any platform
-    function isOverlappingPlatform(x, y) {
-      const charBottom = y + charHeight;
-      for (let platform of platforms) {
-        const platformTop = platform.bottom + platform.visibleHeight;
-        const platformLeft = platform.left;
-        const platformRight = platform.left + platform.width;
-        const overlapsX = x < platformRight - 10 && x + charWidth > platformLeft + 10;
-        const overlapsY = charBottom > platformTop - collisionBuffer && charBottom < platformTop + collisionBuffer;
-        if (overlapsX && overlapsY) {
-          return true;
-        }
-      }
-      return false;
     }
 
     // Keyboard controls
@@ -593,7 +568,7 @@
         createInitialPlatform(400, 50),
         createInitialPlatform(500, 100),
         createInitialPlatform(600, 50)
-     ];
+      ];
 
       requestAnimationFrame(update);
     }
