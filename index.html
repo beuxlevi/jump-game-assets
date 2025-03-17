@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Scrolling at Score 50</title>
+  <title>Endless Vertical Jump Game - Adjusted Landing and Movement</title>
   <style>
     body {
       margin: 0;
@@ -92,9 +92,9 @@
     const gameHeight = 600;
     const charWidth = 100;
     const charHeight = 100;
-    const visiblePlatformHeight = 15; // Original value
+    const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 5;
+    const collisionBuffer = 5; // Buffer for raycast collision
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -178,11 +178,6 @@
 
     // Generate a new platform
     function generatePlatform() {
-      if (score === 49) {
-        scrollPaused = true;
-        console.log("Scroll paused at score 49");
-      }
-
       const stage = getStage();
       const highestPlatform = platforms[platforms.length - 1];
       const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
@@ -190,20 +185,15 @@
       const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
 
-      if (score === 50) {
+      if (score % 50 === 49) {
         newLeft = 0;
         newWidth = gameWidth;
         moving = false;
         speed = 0;
         icy = false;
         slow = false;
-        // Force score increment when landing on cross-screen platform
-        if (onGround && platforms[platforms.length - 1].bottom === newBottom) {
-          score += 1;
-          platforms[platforms.length - 1].passed = true;
-          document.getElementById('score').textContent = `Score: ${score}`;
-          console.log("Forced score increment to 51 on cross-screen platform", { score, characterY });
-        }
+        consecutiveBlues = 0;
+        consecutiveBrowns = 0;
       } else {
         const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
         const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
@@ -285,7 +275,6 @@
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      console.log("Platform generated", { score, newBottom, newLeft, newWidth, moving, icy, slow });
       return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
@@ -325,40 +314,18 @@
           score += 1;
           p.passed = true;
           document.getElementById('score').textContent = `Score: ${score}`;
-          console.log("Score incremented", { score, platformTop, characterY });
-
-          // Resume scrolling at score 51 and reset movement
-          if (score === 51 && scrollPaused) {
-            scrollPaused = false;
-            scrolling = true; // Ensure scrolling is active
-            onMovingPlatform = null;
-            platformOffsetX = 0;
-            console.log("Resuming scroll at score 51, resetting movement", { scrollPaused, scrolling, onMovingPlatform, platformOffsetX });
-            // Generate a new platform immediately
-            platforms.push(generatePlatform());
-            console.log("Generated new platform after resuming scroll at score 51");
-          }
         }
       });
 
       const lowestPlatform = platforms[0];
       if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
-        console.log("Removing platform", { bottom: lowestPlatform.bottom, width: lowestPlatform.width });
         lowestPlatform.element.remove();
         platforms.shift();
       }
 
       const highestPlatform = platforms[platforms.length - 1];
-      if (highestPlatform.bottom < spawnThreshold) {
+      if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
         platforms.push(generatePlatform());
-      }
-      // Fallback: Resume scrolling if character jumps too high
-      if (characterY > spawnThreshold && scrollPaused) {
-        scrollPaused = false;
-        scrolling = true;
-        onMovingPlatform = null;
-        platformOffsetX = 0;
-        console.log("Forced scroll resume due to characterY > spawnThreshold", { characterY, spawnThreshold, scrollPaused, scrolling });
       }
     }
 
@@ -378,9 +345,12 @@
         }
         velocityY = jumpStrength;
         onGround = false; // Ensure onGround is false when jumping
+        onMovingPlatform = null; // Reset moving platform on jump
+        platformOffsetX = 0; // Reset offset on jump
         keys.jump = false;
         directionHoldStart = null;
-        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
+        if (scrollPaused) scrollPaused = false;
+        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY, onMovingPlatform, platformOffsetX });
       }
 
       // Apply gravity
@@ -388,7 +358,7 @@
       let nextY = characterY + velocityY; // Predict next position
       let prevBottom = prevY + charHeight;
       let currentBottom = nextY + charHeight;
-      console.log("Before collision", { characterY, nextY, velocityY, onGround, prevBottom, currentBottom });
+      console.log("Before collision", { characterY, nextY, velocityY, onGround, prevBottom, currentBottom, onMovingPlatform });
 
       // Floor collision check (only before scrolling)
       if (nextY <= 0) {
@@ -396,7 +366,9 @@
           characterY = 0;
           velocityY = 0;
           onGround = true;
-          console.log("Landed on floor", { characterY, onGround, velocityY });
+          onMovingPlatform = null;
+          platformOffsetX = 0;
+          console.log("Landed on floor", { characterY, onGround, velocityY, onMovingPlatform });
         } else {
           gameOver = true;
           document.getElementById('game-over').style.display = 'block';
@@ -404,9 +376,11 @@
           return;
         }
       } else {
-        // Raycast-like platform collision check
+        // Raycast-like platform collision check with sorting
         let collided = false;
-        for (let platform of platforms) {
+        // Sort platforms by bottom to prioritize lowest platform
+        const sortedPlatforms = [...platforms].sort((a, b) => a.bottom - b.bottom);
+        for (let platform of sortedPlatforms) {
           let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for landing
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
@@ -415,7 +389,7 @@
 
           let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
           let isFalling = velocityY <= 0;
-          let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
+          let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer; // Adjusted raycast
 
           console.log("Collision Check", {
             platformTop,
@@ -434,20 +408,28 @@
           });
 
           if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = platformTop - charHeight; // Snap to visible top
+            characterY = (platform.bottom + platform.visibleHeight) - charHeight; // Snap to visible top
             velocityY = 0;
             onGround = true;
             collided = true;
             if (platform.moving) {
-              if (!onMovingPlatform) {
+              if (!onMovingPlatform || onMovingPlatform !== platform) {
                 platformOffsetX = characterX - platform.left;
               }
               onMovingPlatform = platform;
+              console.log("Landed on moving platform", { platformBottom: platform.bottom, platformSpeed: platform.speed });
             } else {
               onMovingPlatform = null;
               platformOffsetX = 0;
+              console.log("Landed on static platform", { platformBottom: platform.bottom });
             }
-            console.log("Landed on platform", { characterY, platformTop, platformBottom: platform.bottom, platformWidth: platform.width });
+            // Reset if jumping from cross-screen platform
+            if (score % 50 === 0 && platform.width === gameWidth) {
+              onMovingPlatform = null;
+              platformOffsetX = 0;
+              console.log("Reset movement after cross-screen platform", { score, onMovingPlatform, platformOffsetX });
+            }
+            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.visibleHeight, onMovingPlatform });
             break;
           }
         }
@@ -456,6 +438,12 @@
         if (!collided) {
           characterY = nextY;
           onGround = false;
+          // Clear onMovingPlatform if no longer overlapping
+          if (onMovingPlatform && !isOverlappingPlatform(characterX, characterY)) {
+            onMovingPlatform = null;
+            platformOffsetX = 0;
+            console.log("Cleared onMovingPlatform due to no overlap", { characterX, characterY, onMovingPlatform });
+          }
         }
       }
 
@@ -507,6 +495,7 @@
           }
         }
         platformOffsetX = characterX - onMovingPlatform.left; // Update offset
+        console.log("Moved with platform", { characterX, platformSpeed: onMovingPlatform.speed, platformLeft: onMovingPlatform.left });
       } else {
         characterX += velocityX;
       }
@@ -519,6 +508,22 @@
       character.style.left = characterX + 'px';
 
       requestAnimationFrame(update);
+    }
+
+    // Helper function to check if character overlaps any platform
+    function isOverlappingPlatform(x, y) {
+      const charBottom = y + charHeight;
+      for (let platform of platforms) {
+        const platformTop = platform.bottom + platform.visibleHeight;
+        const platformLeft = platform.left;
+        const platformRight = platform.left + platform.width;
+        const overlapsX = x < platformRight - 10 && x + charWidth > platformLeft + 10;
+        const overlapsY = charBottom > platformTop - collisionBuffer && charBottom < platformTop + collisionBuffer;
+        if (overlapsX && overlapsY) {
+          return true;
+        }
+      }
+      return false;
     }
 
     // Keyboard controls
@@ -588,7 +593,7 @@
         createInitialPlatform(400, 50),
         createInitialPlatform(500, 100),
         createInitialPlatform(600, 50)
-      ];
+     ];
 
       requestAnimationFrame(update);
     }
