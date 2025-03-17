@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Refined Landing</title>
+  <title>Endless Vertical Jump Game - Fixed Collision Detection</title>
   <style>
     body {
       margin: 0;
@@ -93,8 +93,8 @@
     const charWidth = 100;
     const charHeight = 100;
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 1;        // Tightened collision buffer
-    const landingOffset = 46;         // Adjusted to fine-tune alignment (testing 46 instead of 47)
+    const collisionBuffer = 5;        // Reverted to original value
+    const landingOffset = 45;         // Adjusted to fine-tune alignment (testing 45)
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -264,8 +264,8 @@
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      console.log("Platform generated", { score, newBottom, platformTop: newBottom + 20, newLeft, newWidth, moving, icy, slow });
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, element: platform, passed: false, moving, speed, icy, slow };
+      console.log("Platform generated", { score, newBottom, platformTop: newBottom + 67, newLeft, newWidth, moving, icy, slow });
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
     // Update platforms and score
@@ -299,7 +299,7 @@
       }
 
       platforms.forEach(p => {
-        const platformTop = p.bottom + 20; // Use visible height (20px) for scoring
+        const platformTop = p.bottom + p.height; // Use full height for scoring
         if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
@@ -370,7 +370,7 @@
         // Raycast-like platform collision check
         let collided = false;
         for (let platform of platforms) {
-          let platformTop = platform.bottom + 20; // Use visible height (20px) for collision detection
+          let platformTop = platform.bottom + platform.height; // Use full height (67px) for collision detection
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -463,7 +463,7 @@
         if (onMovingPlatform.icy) {
           if (characterX < onMovingPlatform.left) characterX = onMovingPlatform.left;
           if (characterX > onMovingPlatform.left + onMovingPlatform.width - charWidth) {
-            characterX = onMovingPlatform.left + onMovingPlatform.width - charHeight;
+            characterX = onMovingPlatform.left + onMovingPlatform.width - charWidth;
           }
         }
         platformOffsetX = characterX - onMovingPlatform.left; // Update offset
