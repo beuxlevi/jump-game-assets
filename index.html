@@ -95,7 +95,7 @@
     const visiblePlatformHeight = 20; // Adjusted to approximate visible platform surface height
     const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
     const collisionBuffer = 5;        // Buffer for raycast collision
-    const landingAdjustment = 47;     // Adjust landing position after score 50 (67 - 20)
+    const landingOffset = 47;         // Offset to align feet with PNG top (67 - 20)
 
     // Initial platform setup
     function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
@@ -111,7 +111,7 @@
       }
       document.getElementById('game').appendChild(platform);
       const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      return { bottom, left, width: platformVisibleWidth, height: 67, visibleHeight: visiblePlatformHeight, element: platform, passed: false, moving, speed, icy, slow, stage: 0 };
+      return { bottom, left, width: platformVisibleWidth, height: 67, visibleHeight: visiblePlatformHeight, element: platform, passed: false, moving, speed, icy, slow };
     }
 
     // Create initial platforms
@@ -186,85 +186,75 @@
       const newBottom = highestPlatform.bottom + verticalSpacing;
       let newLeft, newWidth, moving, speed, icy, slow;
 
-      if (score % 50 === 49) {
-        newLeft = 0;
-        newWidth = gameWidth;
-        moving = false;
-        speed = 0;
-        icy = false;
-        slow = false;
-        consecutiveBlues = 0;
-        consecutiveBrowns = 0;
-      } else {
-        const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
-        const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
-        newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
-        newWidth = platformVisibleWidth;
-        const movingChance = Math.min(0 + stage * 0.2, 0.8);
-        moving = Math.random() < movingChance;
+      // Standard platform generation (removed cross-screen platform logic)
+      const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
+      const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
+      newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
+      newWidth = platformVisibleWidth;
+      const movingChance = Math.min(0 + stage * 0.2, 0.8);
+      moving = Math.random() < movingChance;
 
-        if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-        else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-        else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-        else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-        else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0;
+      if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+      else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+      else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+      else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
+      else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0;
 
-        if (stage === 2 && score >= 100 && score < 150) {
-          if (blueCountStage2 < 5 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage2 < 3)) {
-            icy = true;
-            slow = false;
-            blueCountStage2++;
-            consecutiveBlues++;
-            consecutiveBrowns = 0;
-          } else {
-            icy = false;
-            slow = false;
-            consecutiveBlues = 0;
-          }
-        } else if (stage === 3 && score >= 150 && score < 200) {
-          if (blueCountStage3 < 10 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage3 < 5)) {
-            icy = true;
-            slow = false;
-            blueCountStage3++;
-            consecutiveBlues++;
-            consecutiveBrowns = 0;
-          } else if (brownCountStage3 < 5 && consecutiveBrowns < 3 && (Math.random() < 0.25 || brownCountStage3 < 3)) {
-            icy = false;
-            slow = true;
-            brownCountStage3++;
-            consecutiveBrowns++;
-            consecutiveBlues = 0;
-          } else {
-            icy = false;
-            slow = false;
-            consecutiveBlues = 0;
-            consecutiveBrowns = 0;
-          }
-        } else if (stage === 4 && score >= 200 && score < 250) {
-          if (blueCountStage4 < 15 && consecutiveBlues < 3 && (Math.random() < 0.5 || blueCountStage4 < 7)) {
-            icy = true;
-            slow = false;
-            blueCountStage4++;
-            consecutiveBlues++;
-            consecutiveBrowns = 0;
-          } else if (brownCountStage4 < 7 && consecutiveBrowns < 3 && (Math.random() < 0.35 || brownCountStage4 < 4)) {
-            icy = false;
-            slow = true;
-            brownCountStage4++;
-            consecutiveBrowns++;
-            consecutiveBlues = 0;
-          } else {
-            icy = false;
-            slow = false;
-            consecutiveBlues = 0;
-            consecutiveBrowns = 0;
-          }
+      if (stage === 2 && score >= 100 && score < 150) {
+        if (blueCountStage2 < 5 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage2 < 3)) {
+          icy = true;
+          slow = false;
+          blueCountStage2++;
+          consecutiveBlues++;
+          consecutiveBrowns = 0;
         } else {
-          icy = (score >= 100 && consecutiveBlues < 3 && Math.random() < 0.1);
-          slow = (score >= 150 && !icy && consecutiveBrowns < 3 && Math.random() < 0.1);
-          consecutiveBlues = icy ? consecutiveBlues + 1 : 0;
-          consecutiveBrowns = slow ? consecutiveBrowns + 1 : 0;
+          icy = false;
+          slow = false;
+          consecutiveBlues = 0;
         }
+      } else if (stage === 3 && score >= 150 && score < 200) {
+        if (blueCountStage3 < 10 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage3 < 5)) {
+          icy = true;
+          slow = false;
+          blueCountStage3++;
+          consecutiveBlues++;
+          consecutiveBrowns = 0;
+        } else if (brownCountStage3 < 5 && consecutiveBrowns < 3 && (Math.random() < 0.25 || brownCountStage3 < 3)) {
+          icy = false;
+          slow = true;
+          brownCountStage3++;
+          consecutiveBrowns++;
+          consecutiveBlues = 0;
+        } else {
+          icy = false;
+          slow = false;
+          consecutiveBlues = 0;
+          consecutiveBrowns = 0;
+        }
+      } else if (stage === 4 && score >= 200 && score < 250) {
+        if (blueCountStage4 < 15 && consecutiveBlues < 3 && (Math.random() < 0.5 || blueCountStage4 < 7)) {
+          icy = true;
+          slow = false;
+          blueCountStage4++;
+          consecutiveBlues++;
+          consecutiveBrowns = 0;
+        } else if (brownCountStage4 < 7 && consecutiveBrowns < 3 && (Math.random() < 0.35 || brownCountStage4 < 4)) {
+          icy = false;
+          slow = true;
+          brownCountStage4++;
+          consecutiveBrowns++;
+          consecutiveBlues = 0;
+        } else {
+          icy = false;
+          slow = false;
+          consecutiveBlues = 0;
+          consecutiveBrowns = 0;
+        }
+      } else {
+        icy = (score >= 100 && consecutiveBlues < 3 && Math.random() < 0.1);
+        slow = (score >= 150 && !icy && consecutiveBrowns < 3 && Math.random() < 0.1);
+        consecutiveBlues = icy ? consecutiveBlues + 1 : 0;
+        consecutiveBrowns = slow ? consecutiveBrowns + 1 : 0;
       }
 
       const newPlatform = document.createElement('div');
@@ -276,10 +266,8 @@
                                          (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
                                                'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
       document.getElementById('game').appendChild(newPlatform);
-      // Track the stage at which the platform was generated
-      const platformStage = getStage();
-      console.log("Platform generated", { score, newBottom, platformTop: newBottom + visiblePlatformHeight, newLeft, newWidth, moving, icy, slow, stage: platformStage });
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow, stage: platformStage };
+      console.log("Platform generated", { score, newBottom, platformTop: newBottom + visiblePlatformHeight, newLeft, newWidth, moving, icy, slow });
+      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, visibleHeight: visiblePlatformHeight, element: newPlatform, passed: false, moving, speed, icy, slow };
     }
 
     // Update platforms and score
@@ -313,14 +301,12 @@
       }
 
       platforms.forEach(p => {
-        // Adjust platformTop for scoring based on stage
-        const effectiveHeight = p.stage > 0 ? p.visibleHeight + landingAdjustment : p.visibleHeight;
-        const platformTop = p.bottom + effectiveHeight;
+        const platformTop = p.bottom + p.visibleHeight; // Use visible height for scoring
         if (characterY > platformTop && !p.passed) {
           score += 1;
           p.passed = true;
           document.getElementById('score').textContent = `Score: ${score}`;
-          console.log("Score incremented", { score, platformTop, characterY, stage: p.stage });
+          console.log("Score incremented", { score, platformTop, characterY });
         }
       });
 
@@ -386,9 +372,7 @@
         // Raycast-like platform collision check
         let collided = false;
         for (let platform of platforms) {
-          // Adjust platformTop based on stage
-          const effectiveHeight = platform.stage > 0 ? platform.visibleHeight + landingAdjustment : platform.visibleHeight;
-          let platformTop = platform.bottom + effectiveHeight;
+          let platformTop = platform.bottom + platform.visibleHeight; // Use visible height for collision detection
           let platformLeft = platform.left;
           let platformRight = platform.left + platform.width;
 
@@ -408,12 +392,11 @@
             characterY,
             nextY,
             velocityY,
-            platformBottom: platform.bottom,
-            stage: platform.stage
+            platformBottom: platform.bottom
           });
 
           if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = platformTop - charHeight; // Snap to adjusted top
+            characterY = (platform.bottom + platform.height - charHeight) - landingOffset; // Align with PNG top
             velocityY = 0;
             onGround = true;
             collided = true;
@@ -426,10 +409,7 @@
               onMovingPlatform = null;
               platformOffsetX = 0;
             }
-            if (score % 50 === 0 && platform.width === gameWidth) {
-              scrollPaused = true;
-            }
-            console.log("Landed on platform", { characterY, platformTop, platformBottom: platform.bottom, stage: platform.stage });
+            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.height - landingOffset });
             break;
           }
         }
