@@ -1,560 +1,345 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Endless Vertical Jump Game - Fixed Collision Detection</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tower Jump — Prototype</title>
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #f0f0f0;
-    }
-
-    #game {
-      position: relative;
-      width: 400px;
-      height: 600px;
-      background-color: #87CEEB;
-      overflow: hidden;
-      border: 1px solid black;
-    }
-
-    #character {
-      position: absolute;
-      width: 100px;
-      height: 100px;
-      left: 150px;
-      bottom: 0px;
-      z-index: 10;
-    }
-
-    #character img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    .platform {
-      position: absolute;
-      width: 150px; /* Adjusted to approximate visible PNG width */
-      height: 67px; /* Full PNG height for styling */
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
-      z-index: 5;
-    }
-
-    #game-over {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 24px;
-      font-family: Arial, sans-serif;
-      color: white;
-      text-align: center;
-      background-color: rgba(0, 0, 0, 0.7);
-      padding: 20px;
-      z-index: 20;
-      display: none;
-    }
-
-    #score {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 20px;
-      font-family: Arial, sans-serif;
-      color: black;
-      z-index: 15;
-    }
+    html, body { height: 100%; margin: 0; background: #0f1220; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #e5e7eb; }
+    #ui { position: fixed; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center; z-index: 5; }
+    .pill { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); padding: 6px 10px; border-radius: 999px; backdrop-filter: blur(6px); }
+    #controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; gap: 14px; z-index: 5; }
+    .btn { width: 70px; height: 70px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); backdrop-filter: blur(6px); color: #fff; font-weight: 700; font-size: 18px; display: grid; place-items: center; user-select: none; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #overlay { position: fixed; inset: 0; display: none; place-items: center; background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.7)); z-index: 10; }
+    #card { background: #12162a; border: 1px solid rgba(255,255,255,0.1); padding: 24px; border-radius: 16px; text-align: center; width: min(520px, 92vw); }
+    #card h1 { margin: 0 0 6px326646; font-size: 24px; }
+    #card p { margin: 4px 0; color: #cbd5e1; }
+    #card .row { display: flex; justify-content: center; gap: 12px; margin-top: 12px; }
+    #card button { padding: 10px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: #1a2040; color: #fff; font-weight: 700; cursor: pointer; }
+    a { color: #93c5fd; }
   </style>
 </head>
 <body>
-  <div id="game">
-    <div id="character">
-      <img src="https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Seb%20Front%20300.png" alt="Character">
-    </div>
-    <div id="game-over">Game Over<br>Press R to Restart</div>
-    <div id="score">Score: 0</div>
+  <div id="ui">
+    <div class="pill" id="score">Score: 0</div>
+    <div class="pill" id="best">Best: 0</div>
+    <div class="pill">Move: ← → • A D</div>
+    <div class="pill">Jump: Auto (bounce)</div>
+    <div class="pill">Restart: R or click</div>
   </div>
 
+  <div id="controls">
+    <div class="btn" id="left">←</div>
+    <div class="btn" id="right">→</div>
+  </div>
+
+  <div id="overlay">
+    <div id="card">
+      <h1>Game Over</h1>
+      <p id="finalScore">You reached 0 m</p>
+      <div class="row">
+        <button id="restart">Restart (R)</button>
+      </div>
+      <p style="margin-top:12px; font-size:12px; opacity:.8;">Prototype build — HTML Canvas. © You.</p>
+    </div>
+  </div>
+
+  <canvas id="c"></canvas>
+
   <script>
-    // Game dimensions and constants
-    const gameWidth = 400;
-    const gameHeight = 600;
-    const charWidth = 100;
-    const charHeight = 100;
-    const platformVisibleWidth = 150; // Adjusted to approximate visible PNG width
-    const collisionBuffer = 5;        // Reverted to original value
-    const landingOffset = 45;         // Adjusted to fine-tune alignment (testing 45)
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const overlay = document.getElementById('overlay');
+    const finalScoreEl = document.getElementById('finalScore');
+    const restartBtn = document.getElementById('restart');
 
-    // Initial platform setup
-    function createInitialPlatform(bottom, left, moving = false, icy = false, slow = false) {
-      const platform = document.createElement('div');
-      platform.className = 'platform';
-      platform.style.bottom = bottom + 'px';
-      platform.style.left = left + 'px';
-      platform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
-                                         (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
-                                               'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
-      if (!platform.style.backgroundImage) {
-        console.error("Platform image failed to load for type:", { slow, icy });
+    const mobileControls = document.getElementById('controls');
+    const leftBtn = document.getElementById('left');
+    const rightBtn = document.getElementById('right');
+
+    let W = 0, H = 0;
+    function resize() {
+      W = canvas.width = window.innerWidth * devicePixelRatio;
+      H = canvas.height = window.innerHeight * devicePixelRatio;
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      // Show mobile controls for narrow screens
+      mobileControls.style.display = window.innerWidth < 820 ? 'flex' : 'none';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const rand = (min, max) => Math.random() * (max - min) + min;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    const G = 2400; // gravity px/s^2
+    const JUMP_V = -1050; // auto-bounce velocity
+    const MOVE_ACCEL = 2600;
+    const MOVE_DRAG = 0.0016;
+    const MAX_SPEED_X = 480;
+
+    const WORLD = {
+      cameraY: 0, // top-left world y shown on screen
+      highestGeneratedY: 0, // smallest y (most negative) generated so far
+      startY: 0,
+      best: 0,
+      running: true,
+    };
+
+    const player = {
+      x: 0, y: 0, w: 36, h: 44,
+      vx: 0, vy: 0,
+      color: '#d1fae5',
+      lastBottom: 0,
+    };
+
+    const platforms = [];
+
+    function reset() {
+      platforms.length = 0;
+      WORLD.cameraY = 0;
+      WORLD.highestGeneratedY = 0;
+      WORLD.startY = 0;
+      WORLD.running = true;
+
+      // Initialize player roughly mid-bottom
+      player.x = window.innerWidth / 2 - player.w / 2;
+      player.y = window.innerHeight - 140;
+      player.vx = 0; player.vy = -600; // initial upward kick
+
+      // Base platform
+      addPlatform(window.innerWidth/2 - 120, window.innerHeight - 80, 240, 20, 'solid');
+
+      // Generate upwards a bit
+      WORLD.highestGeneratedY = window.innerHeight - 200;
+      while (WORLD.highestGeneratedY > -2000) {
+        generateNextBand();
       }
-      document.getElementById('game').appendChild(platform);
-      const speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      return { bottom, left, width: platformVisibleWidth, height: 67, element: platform, passed: false, moving, speed, icy, slow };
+
+      overlay.style.display = 'none';
     }
 
-    // Create initial platforms
-    let platforms = [
-      createInitialPlatform(100, 100),
-      createInitialPlatform(200, 50),
-      createInitialPlatform(300, 100),
-      createInitialPlatform(400, 50),
-      createInitialPlatform(500, 100),
-      createInitialPlatform(600, 50)
-    ];
-
-    // Game variables
-    let characterX = 150;
-    let characterY = 0; // Start at bottom of screen (floor)
-    let velocityX = 0;
-    let velocityY = 0;
-    let gravity = -0.5;
-    const baseJumpStrength = 12;
-    const maxJumpStrength = 16;
-    const maxMoveSpeed = 4.5;
-    const slowMaxMoveSpeed = 2.5;
-    const acceleration = 0.15;
-    const slowAcceleration = 0.08;
-    const blueSlide = 0.05;
-    let lastDirection = 0;
-    let onGround = true;
-    let onMovingPlatform = null;
-    let platformOffsetX = 0;
-    let gameOver = false;
-    let scrolling = false;
-    let scrollPaused = false;
-    const baseScrollSpeed = 0.5;
-    let currentScrollSpeed = 0;
-    const scrollThreshold = 200;
-    const maxScrollSpeed = 2;
-    const targetY = gameHeight * 0.75;
-    const spawnThreshold = 600;
-    let score = 0;
-    let directionHoldStart = null;
-    const maxHoldTime = 1000;
-
-    // Difficulty settings
-    const baseVerticalSpacing = 100;
-    const verticalSpacingIncrease = 20;
-    const baseMaxJumpDistance = 250;
-    const horizontalDistanceIncrease = 25;
-
-    // Track platforms
-    let blueCountStage2 = 0;
-    let blueCountStage3 = 0;
-    let blueCountStage4 = 0;
-    let brownCountStage3 = 0;
-    let brownCountStage4 = 0;
-    let consecutiveBlues = 0;
-    let consecutiveBrowns = 0;
-
-    // Key states
-    let keys = { left: false, right: false, jump: false };
-
-    // Get current stage based on score
-    function getStage() {
-      return Math.floor(score / 50);
+    function addPlatform(x, y, w, h, type='solid', meta={}) {
+      platforms.push({ x, y, w, h, type, t: Math.random()*Math.PI*2, ...meta });
     }
 
-    // Generate a new platform
-    function generatePlatform() {
-      const stage = getStage();
-      const highestPlatform = platforms[platforms.length - 1];
-      const verticalSpacing = stage < 3 ? baseVerticalSpacing + stage * verticalSpacingIncrease : baseVerticalSpacing + 2 * verticalSpacingIncrease;
-      const maxJumpDistance = baseMaxJumpDistance + stage * horizontalDistanceIncrease;
-      const newBottom = highestPlatform.bottom + verticalSpacing;
-      let newLeft, newWidth, moving, speed, icy, slow;
+    function generateNextBand() {
+      // Generate a vertical band of platforms above current highestGeneratedY
+      const bandHeight = 400; // px
+      const targetTop = WORLD.highestGeneratedY - bandHeight;
+      const density = 5 + Math.floor(rand(0, 2));
 
-      const minLeft = Math.max(0, highestPlatform.left - maxJumpDistance + platformVisibleWidth);
-      const maxLeft = Math.min(gameWidth - platformVisibleWidth, highestPlatform.left + maxJumpDistance - platformVisibleWidth);
-      newLeft = Math.floor(minLeft + Math.random() * (maxLeft - minLeft + 1));
-      newWidth = platformVisibleWidth;
-      const movingChance = Math.min(0 + stage * 0.2, 0.8);
-      moving = Math.random() < movingChance;
+      for (let i = 0; i < density; i++) {
+        const y = rand(targetTop, WORLD.highestGeneratedY - 40);
+        const w = rand(90, 180);
+        const h = 18;
+        const x = rand(24, window.innerWidth - w - 24);
+        // chance for a moving platform higher up
+        const depth = -y; // higher = deeper (more negative y)
+        const movingChance = clamp((depth - 600) / 3000, 0, 0.35);
+        const breakChance = clamp((depth - 1000) / 4500, 0, 0.25);
 
-      if (stage === 1) speed = moving ? (Math.random() * 1 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else if (stage === 2) speed = moving ? (Math.random() * 1.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else if (stage === 3) speed = moving ? (Math.random() * 2 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else if (stage === 4) speed = moving ? (Math.random() * 2.5 + 0.5) * (Math.random() < 0.5 ? 1 : -1) : 0;
-      else speed = moving ? (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1) : 0;
-
-      if (stage === 2 && score >= 100 && score < 150) {
-        if (blueCountStage2 < 5 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage2 < 3)) {
-          icy = true;
-          slow = false;
-          blueCountStage2++;
-          consecutiveBlues++;
-          consecutiveBrowns = 0;
+        const r = Math.random();
+        if (r < movingChance) {
+          const range = rand(50, 160);
+          const speed = rand(40, 90);
+          addPlatform(x, y, w, h, 'moving', { ox: x, range, speed });
+        } else if (r < movingChance + breakChance) {
+          addPlatform(x, y, w, h, 'break');
         } else {
-          icy = false;
-          slow = false;
-          consecutiveBlues = 0;
+          addPlatform(x, y, w, h, 'solid');
         }
-      } else if (stage === 3 && score >= 150 && score < 200) {
-        if (blueCountStage3 < 10 && consecutiveBlues < 3 && (Math.random() < 0.33 || blueCountStage3 < 5)) {
-          icy = true;
-          slow = false;
-          blueCountStage3++;
-          consecutiveBlues++;
-          consecutiveBrowns = 0;
-        } else if (brownCountStage3 < 5 && consecutiveBrowns < 3 && (Math.random() < 0.25 || brownCountStage3 < 3)) {
-          icy = false;
-          slow = true;
-          brownCountStage3++;
-          consecutiveBrowns++;
-          consecutiveBlues = 0;
-        } else {
-          icy = false;
-          slow = false;
-          consecutiveBlues = 0;
-          consecutiveBrowns = 0;
-        }
-      } else if (stage === 4 && score >= 200 && score < 250) {
-        if (blueCountStage4 < 15 && consecutiveBlues < 3 && (Math.random() < 0.5 || blueCountStage4 < 7)) {
-          icy = true;
-          slow = false;
-          blueCountStage4++;
-          consecutiveBlues++;
-          consecutiveBrowns = 0;
-        } else if (brownCountStage4 < 7 && consecutiveBrowns < 3 && (Math.random() < 0.35 || brownCountStage4 < 4)) {
-          icy = false;
-          slow = true;
-          brownCountStage4++;
-          consecutiveBrowns++;
-          consecutiveBlues = 0;
-        } else {
-          icy = false;
-          slow = false;
-          consecutiveBlues = 0;
-          consecutiveBrowns = 0;
-        }
-      } else {
-        icy = (score >= 100 && consecutiveBlues < 3 && Math.random() < 0.1);
-        slow = (score >= 150 && !icy && consecutiveBrowns < 3 && Math.random() < 0.1);
-        consecutiveBlues = icy ? consecutiveBlues + 1 : 0;
-        consecutiveBrowns = slow ? consecutiveBrowns + 1 : 0;
       }
 
-      const newPlatform = document.createElement('div');
-      newPlatform.className = 'platform';
-      newPlatform.style.bottom = newBottom + 'px';
-      newPlatform.style.left = newLeft + 'px';
-      newPlatform.style.width = newWidth + 'px';
-      newPlatform.style.backgroundImage = slow ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20600.png)' : 
-                                         (icy ? 'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20600.png)' : 
-                                               'url(https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20600.png)');
-      document.getElementById('game').appendChild(newPlatform);
-      console.log("Platform generated", { score, newBottom, platformTop: newBottom + 67, newLeft, newWidth, moving, icy, slow });
-      return { bottom: newBottom, left: newLeft, width: newWidth, height: 67, element: newPlatform, passed: false, moving, speed, icy, slow };
+      WORLD.highestGeneratedY = targetTop;
     }
 
-    // Update platforms and score
-    function updatePlatforms() {
-      if (gameOver) return;
-
-      if (characterY > scrollThreshold) scrolling = true;
-
-      if (scrolling && !gameOver && !scrollPaused) {
-        currentScrollSpeed = baseScrollSpeed;
-        if (characterY > targetY) {
-          const excess = characterY - targetY;
-          currentScrollSpeed = Math.min(baseScrollSpeed + excess * 0.05, maxScrollSpeed);
-        }
-
-        platforms.forEach(p => {
-          p.bottom -= currentScrollSpeed;
-          if (p.moving) {
-            p.left += p.speed;
-            if (p.left <= 0) {
-              p.left = 0;
-              p.speed = -p.speed;
-            } else if (p.left >= gameWidth - p.width) {
-              p.left = gameWidth - p.width;
-              p.speed = -p.speed;
-            }
-            p.element.style.left = p.left + 'px';
-          }
-          p.element.style.bottom = p.bottom + 'px';
-        });
-      }
-
-      platforms.forEach(p => {
-        const platformTop = p.bottom + p.height; // Use full height for scoring
-        if (characterY > platformTop && !p.passed) {
-          score += 1;
-          p.passed = true;
-          document.getElementById('score').textContent = `Score: ${score}`;
-          console.log("Score incremented", { score, platformTop, characterY });
-        }
-      });
-
-      const lowestPlatform = platforms[0];
-      if (lowestPlatform && lowestPlatform.bottom < -lowestPlatform.height) {
-        lowestPlatform.element.remove();
-        platforms.shift();
-      }
-
-      const highestPlatform = platforms[platforms.length - 1];
-      if (highestPlatform.bottom < spawnThreshold && !scrollPaused) {
-        platforms.push(generatePlatform());
-      }
-    }
-
-    // Game loop
-    function update() {
-      if (gameOver) return;
-
-      let prevY = characterY;
-
-      // Handle jump immediately
-      if (keys.jump && onGround) {
-        let jumpStrength = baseJumpStrength;
-        if (directionHoldStart !== null) {
-          const holdTime = Date.now() - directionHoldStart;
-          const holdFraction = Math.min(holdTime / maxHoldTime, 1);
-          jumpStrength = baseJumpStrength + (maxJumpStrength - baseJumpStrength) * holdFraction;
-        }
-        velocityY = jumpStrength;
-        onGround = false; // Ensure onGround is false when jumping
-        onMovingPlatform = null;
-        platformOffsetX = 0;
-        keys.jump = false;
-        directionHoldStart = null;
-        if (scrollPaused) scrollPaused = false;
-        console.log("Jump triggered", { jumpStrength, characterY, onGround, velocityY });
-      }
-
-      // Apply gravity
-      velocityY += gravity;
-      let nextY = characterY + velocityY; // Predict next position
-      let prevBottom = prevY + charHeight;
-      let currentBottom = nextY + charHeight;
-      console.log("Before collision", { characterY, nextY, velocityY, onGround, prevBottom, currentBottom });
-
-      // Floor collision check (only before scrolling)
-      if (nextY <= 0) {
-        if (!scrolling) {
-          characterY = 0;
-          velocityY = 0;
-          onGround = true;
-          onMovingPlatform = null;
-          platformOffsetX = 0;
-          console.log("Landed on floor", { characterY, onGround, velocityY });
-        } else {
-          gameOver = true;
-          document.getElementById('game-over').style.display = 'block';
-          console.log("Game Over (hit floor after scroll)", { characterY });
-          return;
-        }
-      } else {
-        // Raycast-like platform collision check
-        let collided = false;
-        for (let platform of platforms) {
-          let platformTop = platform.bottom + platform.height; // Use full height (67px) for collision detection
-          let platformLeft = platform.left;
-          let platformRight = platform.left + platform.width;
-
-          let charRight = characterX + charWidth;
-
-          let overlapsX = characterX < platformRight - 10 && charRight > platformLeft + 10;
-          let isFalling = velocityY <= 0;
-          let intersectsPlatform = prevBottom > platformTop - collisionBuffer && currentBottom <= platformTop + collisionBuffer;
-
-          console.log("Collision Check", {
-            platformTop,
-            prevBottom,
-            currentBottom,
-            overlapsX,
-            isFalling,
-            intersectsPlatform,
-            characterY,
-            nextY,
-            velocityY,
-            platformBottom: platform.bottom
-          });
-
-          if (overlapsX && isFalling && intersectsPlatform) {
-            characterY = (platform.bottom + platform.height - charHeight) - landingOffset; // Align with PNG top
-            velocityY = 0;
-            onGround = true;
-            collided = true;
-            if (platform.moving) {
-              if (!onMovingPlatform) {
-                platformOffsetX = characterX - platform.left;
-              }
-              onMovingPlatform = platform;
-            } else {
-              onMovingPlatform = null;
-              platformOffsetX = 0;
-            }
-            console.log("Landed on platform", { characterY, platformTop: platform.bottom + platform.height - landingOffset });
-            break;
-          }
-        }
-
-        // Update position only if no collision
-        if (!collided) {
-          characterY = nextY;
-          onGround = false;
-        }
-      }
-
-      // Game over condition (below screen)
-      if (characterY < -charHeight) {
-        gameOver = true;
-        document.getElementById('game-over').style.display = 'block';
-        console.log("Game Over (below screen)", { characterY });
-      }
-
-      // Horizontal movement
-      if (keys.left && !keys.right) lastDirection = -1;
-      else if (keys.right && !keys.left) lastDirection = 1;
-
-      const currentMaxMoveSpeed = (onGround && onMovingPlatform && onMovingPlatform.slow) ? slowMaxMoveSpeed : maxMoveSpeed;
-      const currentAcceleration = (onGround && onMovingPlatform && onMovingPlatform.slow) ? slowAcceleration : acceleration;
-
-      if (keys.left && !keys.right) {
-        velocityX -= currentAcceleration;
-        if (velocityX < -currentMaxMoveSpeed) velocityX = -currentMaxMoveSpeed;
-      } else if (keys.right && !keys.left) {
-        velocityX += currentAcceleration;
-        if (velocityX > currentMaxMoveSpeed) velocityX = currentMaxMoveSpeed;
-      } else {
-        if (onMovingPlatform && onMovingPlatform.icy) {
-          if (velocityX > 0) {
-            velocityX -= blueSlide;
-            if (velocityX < 0) velocityX = 0;
-          } else if (velocityX < 0) {
-            velocityX += blueSlide;
-            if (velocityX > 0) velocityX = 0;
-          }
-        } else {
-          velocityX = 0;
-        }
-      }
-
-      updatePlatforms();
-
-      // Update character position with platform movement
-      if (onGround && onMovingPlatform) {
-        // Always update with platform movement, then apply player input
-        characterX += onMovingPlatform.speed; // Move with platform
-        characterX += velocityX; // Apply player movement
-        if (onMovingPlatform.icy) {
-          if (characterX < onMovingPlatform.left) characterX = onMovingPlatform.left;
-          if (characterX > onMovingPlatform.left + onMovingPlatform.width - charWidth) {
-            characterX = onMovingPlatform.left + onMovingPlatform.width - charWidth;
-          }
-        }
-        platformOffsetX = characterX - onMovingPlatform.left; // Update offset
-      } else {
-        characterX += velocityX;
-      }
-
-      if (characterX < 0) characterX = 0;
-      if (characterX > gameWidth - charWidth) characterX = gameWidth - charWidth;
-
-      const character = document.getElementById('character');
-      character.style.bottom = characterY + 'px';
-      character.style.left = characterX + 'px';
-
-      requestAnimationFrame(update);
-    }
-
-    // Keyboard controls
-    document.addEventListener('keydown', function(event) {
-      if (gameOver && event.code === 'KeyR') {
-        resetGame();
-        return;
-      }
-
-      if ((event.code === 'ArrowUp' || event.code === 'KeyW' || event.code === 'Space') && !gameOver) {
-        event.preventDefault();
-        keys.jump = true;
-      }
-
-      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
-        if (!keys.left) directionHoldStart = Date.now();
-        keys.left = true;
-      }
-
-      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
-        if (!keys.right) directionHoldStart = Date.now();
-        keys.right = true;
-      }
+    // Input
+    const keys = new Set();
+    window.addEventListener('keydown', (e) => {
+      keys.add(e.key);
+      if (e.key === 'r' || e.key === 'R') reset();
     });
+    window.addEventListener('keyup', (e) => keys.delete(e.key));
 
-    document.addEventListener('keyup', function(event) {
-      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
-        keys.left = false;
-        if (!keys.right) directionHoldStart = null;
-      }
-      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
-        keys.right = false;
-        if (!keys.left) directionHoldStart = null;
-      }
-    });
+    let touchLeft = false, touchRight = false;
+    leftBtn.addEventListener('touchstart', e => { e.preventDefault(); touchLeft = true; });
+    leftBtn.addEventListener('touchend', e => { e.preventDefault(); touchLeft = false; });
+    rightBtn.addEventListener('touchstart', e => { e.preventDefault(); touchRight = true; });
+    rightBtn.addEventListener('touchend', e => { e.preventDefault(); touchRight = false; });
 
-    // Reset game function
-    function resetGame() {
-      gameOver = false;
-      characterX = 150;
-      characterY = 0; // Reset to bottom of screen
-      velocityX = 0;
-      velocityY = 0;
-      onGround = true;
-      onMovingPlatform = null;
-      platformOffsetX = 0;
-      scrolling = false;
-      scrollPaused = false;
-      currentScrollSpeed = 0;
-      score = 0;
-      directionHoldStart = null;
-      blueCountStage2 = 0;
-      blueCountStage3 = 0;
-      blueCountStage4 = 0;
-      brownCountStage3 = 0;
-      brownCountStage4 = 0;
-      consecutiveBlues = 0;
-      consecutiveBrowns = 0;
-      document.getElementById('score').textContent = `Score: ${score}`;
-      document.getElementById('game-over').style.display = 'none';
+    canvas.addEventListener('click', () => { if (!WORLD.running) reset(); });
+    restartBtn.addEventListener('click', reset);
 
-      platforms.forEach(p => p.element.remove());
-      platforms = [
-        createInitialPlatform(100, 100),
-        createInitialPlatform(200, 50),
-        createInitialPlatform(300, 100),
-        createInitialPlatform(400, 50),
-        createInitialPlatform(500, 100),
-        createInitialPlatform(600, 50)
-      ];
+    let last = performance.now();
 
-      requestAnimationFrame(update);
+    function step(ts) {
+      const dt = Math.min(0.02, (ts - last) / 1000);
+      last = ts;
+
+      update(dt);
+      draw();
+      requestAnimationFrame(step);
     }
 
-    // Start game loop
-    requestAnimationFrame(update);
+    function update(dt) {
+      if (!WORLD.running) return;
+
+      const left = keys.has('ArrowLeft') || keys.has('a') || touchLeft;
+      const right = keys.has('ArrowRight') || keys.has('d') || touchRight;
+
+      // Horizontal
+      let ax = 0;
+      if (left) ax -= MOVE_ACCEL;
+      if (right) ax += MOVE_ACCEL;
+      player.vx += ax * dt;
+      // Drag
+      player.vx -= player.vx * MOVE_DRAG;
+      player.vx = clamp(player.vx, -MAX_SPEED_X, MAX_SPEED_X);
+
+      // Vertical
+      player.vy += G * dt;
+
+      // Apply
+      player.x += player.vx * dt;
+      player.y += player.vy * dt;
+
+      // Wrap / clamp horizontally
+      if (player.x + player.w < 0) player.x = window.innerWidth - 1;
+      if (player.x > window.innerWidth) player.x = -player.w + 1;
+
+      // Platforms update (moving etc)
+      for (const p of platforms) {
+        if (p.type === 'moving') {
+          p.t += dt;
+          p.x = p.ox + Math.sin(p.t * p.speed / 30) * p.range;
+        }
+      }
+
+      // Collision: only when falling and crossing from above
+      const prevBottom = player.lastBottom;
+      player.lastBottom = player.y + player.h;
+
+      if (player.vy > 0) {
+        for (const p of platforms) {
+          const wasAbove = prevBottom <= p.y + 1;
+          if (!wasAbove) continue; // ensure landing from above
+          if (
+            player.x < p.x + p.w &&
+            player.x + player.w > p.x &&
+            player.y + player.h > p.y &&
+            player.y + player.h < p.y + p.h + 20 // small tolerance
+          ) {
+            // Land
+            player.y = p.y - player.h;
+            player.vy = JUMP_V; // auto-bounce jump
+            if (p.type === 'break') p.type = 'gone';
+          }
+        }
+      }
+
+      // Remove broken platforms
+      for (let i = platforms.length - 1; i >= 0; i--) {
+        if (platforms[i].type === 'gone') platforms.splice(i, 1);
+      }
+
+      // Camera follows player upward (never moves down)
+      const targetCam = Math.min(WORLD.cameraY, player.y - window.innerHeight * 0.45);
+      WORLD.cameraY = targetCam;
+
+      // Score (meters as pixels/100)
+      const heightClimbed = Math.max(0, Math.floor((-(player.y - WORLD.startY)) / 100));
+      scoreEl.textContent = `Score: ${heightClimbed}`;
+      if (heightClimbed > WORLD.best) {
+        WORLD.best = heightClimbed;
+        bestEl.textContent = `Best: ${WORLD.best}`;
+      }
+
+      // Generate more platforms above as needed
+      while (WORLD.highestGeneratedY > WORLD.cameraY - 1200) {
+        generateNextBand();
+      }
+
+      // Cull platforms far below
+      for (let i = platforms.length - 1; i >= 0; i--) {
+        if (platforms[i].y - WORLD.cameraY > window.innerHeight + 400) platforms.splice(i, 1);
+      }
+
+      // Death: fell below screen bottom
+      if (player.y - WORLD.cameraY > window.innerHeight + 120) {
+        WORLD.running = false;
+        finalScoreEl.textContent = `You reached ${WORLD.best} m`;
+        overlay.style.display = 'grid';
+      }
+    }
+
+    function drawBG() {
+      // Gradient sky
+      const g = ctx.createLinearGradient(0, 0, 0, window.innerHeight);
+      g.addColorStop(0, '#0b1022');
+      g.addColorStop(1, '#1a1f3f');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      // Subtle parallax stripes
+      ctx.globalAlpha = 0.10;
+      const stripeH = 80;
+      const offs = (WORLD.cameraY * 0.15) % stripeH;
+      ctx.fillStyle = '#0f1430';
+      for (let y = -stripeH; y < window.innerHeight + stripeH; y += stripeH) {
+        ctx.fillRect(0, Math.floor(y + offs), window.innerWidth, stripeH * 0.5);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function draw() {
+      ctx.setTransform(1,0,0,1,0,0);
+      drawBG();
+
+      // World transform (camera)
+      ctx.translate(0, -WORLD.cameraY);
+
+      // Draw platforms
+      for (const p of platforms) {
+        if (p.type === 'gone') continue;
+        // Style by type
+        if (p.type === 'solid') ctx.fillStyle = '#7dd3fc';
+        else if (p.type === 'moving') ctx.fillStyle = '#a78bfa';
+        else if (p.type === 'break') ctx.fillStyle = '#fca5a5';
+        else ctx.fillStyle = '#334155';
+
+        // Soft shadow
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.fillRect(p.x + 4, p.y + 6, p.w, p.h);
+        ctx.restore();
+
+        // Platform
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
+
+      // Draw player
+      ctx.save();
+      // Shadow
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(player.x + 4, player.y + 8, player.w, player.h);
+      ctx.restore();
+      // Body
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+
+      // Eyes (tiny)
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(player.x + 10, player.y + 14, 4, 4);
+      ctx.fillRect(player.x + 22, player.y + 14, 4, 4);
+    }
+
+    reset();
+    requestAnimationFrame(step);
   </script>
 </body>
 </html>
