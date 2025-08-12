@@ -1,214 +1,367 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Endless Jumper - Improved Base</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Endless Jumper — Clean Core</title>
 <style>
-  body {
+  :root {
+    --w: 480px;  /* 16:9, bigger */
+    --h: 854px;
+  }
+  html, body {
+    height: 100%;
     margin: 0;
     background: #87CEEB;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    display: grid;
+    place-items: center;
+    font-family: system-ui, Arial, sans-serif;
   }
   #game {
     position: relative;
-    width: 480px;   /* Bigger game area */
-    height: 854px;  /* 16:9 ratio */
-    background: #bde0fe;
+    width: var(--w);
+    height: var(--h);
+    background: linear-gradient(#bde0fe, #a4d4ff);
     overflow: hidden;
     border: 2px solid #000;
+    border-radius: 8px;
+  }
+  #score {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    z-index: 10;
+    font-weight: 700;
+    font-size: 20px;
+    color: #000;
+    text-shadow: 0 1px 0 #fff7;
   }
   .player {
     position: absolute;
     width: 50px;
     height: 60px;
-    background: red;
+    background: #e63946;
+    border: 2px solid #0006;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 2px #ffffff22;
   }
   .platform {
     position: absolute;
     width: 120px;
-    height: 20px;
-    background: green;
+    height: 22px;
+    background: #2a9d8f;
+    border: 2px solid #0006;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 2px #ffffff22;
   }
-  #score {
+  .floor { background: #2a9d8f; }
+
+  #overlay {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    font: bold 22px Arial;
-    color: #000;
-    z-index: 10;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(#0000, #0006 30%, #000a 70%, #000c);
+    color: #fff;
+    z-index: 20;
+    text-align: center;
+  }
+  #overlay .card {
+    background: #111a;
+    border: 1px solid #fff3;
+    padding: 20px 24px;
+    border-radius: 10px;
+  }
+  #overlay h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+  }
+  #overlay p { margin: 6px 0; }
+  #overlay kbd {
+    background: #fff2;
+    border: 1px solid #fff4;
+    border-bottom-width: 3px;
+    padding: 2px 6px;
+    border-radius: 6px;
   }
 </style>
 </head>
 <body>
-
-<div id="game">
-  <div id="score">Score: 0</div>
-  <div class="player" id="player"></div>
-</div>
+  <div id="game">
+    <div id="score">Score: 0</div>
+    <div id="overlay"><div class="card">
+      <h1>Game Over</h1>
+      <p>Press <kbd>R</kbd> to restart</p>
+    </div></div>
+    <div id="player" class="player"></div>
+  </div>
 
 <script>
-const game = document.getElementById("game");
-const player = document.getElementById("player");
-const scoreDisplay = document.getElementById("score");
+(() => {
+  // === DOM & constants ===
+  const game = document.getElementById('game');
+  const playerEl = document.getElementById('player');
+  const scoreEl = document.getElementById('score');
+  const overlay = document.getElementById('overlay');
 
-const gameWidth = 480;
-const gameHeight = 854;
-let platforms = [];
-let score = 0;
+  const GAME_W = 480;
+  const GAME_H = 854;
 
-// Player physics
-let px = gameWidth / 2 - 25;
-let py = 100;
-let vx = 0;
-let vy = 0;
-let gravity = -0.45;
-let jumpStrength = 14; // Higher jump
-let moveSpeed = 4;
-let onGround = false;
+  const P_W = 50, P_H = 60;
+  const PLAT_W = 120, PLAT_H = 22;
 
-// Scroll mechanics
-let cameraY = 0; // How much the world has shifted up
-let scrollSpeed = 0; // Starts at 0 until triggered
-let spawnGapY = 150;
-let maxVerticalGap = 180; // Max jumpable gap
-let maxHorizontalGap = 150;
+  // === physics tuning ===
+  const GRAV = -0.45;             // gravity per frame
+  const JUMP_V = 14.5;            // jump impulse (higher than before)
+  const MOVE_SPEED = 4.2;         // horizontal speed cap
+  const AIR_CONTROL = 1.0;        // 1.0 -> full control in air (arcade feel)
 
-// Controls
-let keys = { left: false, right: false, jump: false };
+  // Theoretical max jump height (v^2 / (2*g))
+  const THEO_MAX_H = (JUMP_V * JUMP_V) / (2 * Math.abs(GRAV)); // ~233px
 
-document.addEventListener("keydown", e => {
-  if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
-  if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
-  if (e.code === "Space" || e.code === "ArrowUp") keys.jump = true;
-});
-document.addEventListener("keyup", e => {
-  if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
-  if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
-  if (e.code === "Space" || e.code === "ArrowUp") keys.jump = false;
-});
+  // Gaps (start easy, increase slowly but never exceed safe caps)
+  const START_V_GAP = 120;
+  const START_H_GAP = 140;
+  const MAX_V_GAP_CAP = Math.min(200, THEO_MAX_H * 0.85);  // keep within safe portion of jump height
+  const MAX_H_GAP_CAP = 180;
 
-function createPlatform(x, y) {
-  const el = document.createElement("div");
-  el.className = "platform";
-  el.style.left = x + "px";
-  el.style.bottom = y + "px";
-  game.appendChild(el);
-  platforms.push({ x, y, width: 120, height: 20, el });
-}
+  // difficulty increments per N spawns
+  const DIFF_EVERY = 10;
+  const V_GAP_STEP = 6;
+  const H_GAP_STEP = 6;
 
-function initPlatforms() {
-  platforms.forEach(p => p.el.remove());
-  platforms = [];
-  let startY = 50;
-  for (let i = 0; i < 8; i++) {
-    createPlatform(Math.random() * (gameWidth - 120), startY);
-    startY += spawnGapY;
+  // === scrolling ===
+  const HALF_Y = GAME_H / 2; // trigger line
+  const BASE_SCROLL_SPEED = 1.6;   // once started, constant base speed
+  const SCROLL_SPEED_STEP = 0.06;  // small increase every DIFF_EVERY spawns
+
+  // === state ===
+  let px, py, vx, vy;
+  let onGround;
+  let cameraY;                 // how far world has moved up
+  let scrollStarted;           // bottom safe until this becomes true
+  let autoScrollSpeed;         // once started, this increases slightly over time
+  let score;
+  let platforms = [];
+  let spawnCount = 0;
+  let maxVGap = START_V_GAP;
+  let maxHGap = START_H_GAP;
+  let running = true;
+
+  const keys = { left: false, right: false, jump: false };
+
+  // === helpers ===
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function randRange(a, b) { return a + Math.random() * (b - a); }
+  function makePlatform(x, y, isFloor = false) {
+    const el = document.createElement('div');
+    el.className = 'platform' + (isFloor ? ' floor' : '');
+    el.style.width = PLAT_W + 'px';
+    el.style.height = PLAT_H + 'px';
+    game.appendChild(el);
+    const plat = { x, y, el, passed: false, isFloor };
+    platforms.push(plat);
+    return plat;
   }
-}
-initPlatforms();
+  function setPlatformScreenPos(plat) {
+    plat.el.style.left = plat.x + 'px';
+    plat.el.style.bottom = (plat.y - cameraY) + 'px';
+  }
+  function setPlayerScreenPos() {
+    playerEl.style.left = px + 'px';
+    playerEl.style.bottom = (py - cameraY) + 'px';
+  }
+  function hud() { scoreEl.textContent = 'Score: ' + score; }
 
-function resetGame() {
-  px = gameWidth / 2 - 25;
-  py = 100;
-  vx = 0;
-  vy = 0;
-  score = 0;
-  cameraY = 0;
-  scrollSpeed = 0;
-  spawnGapY = 150;
-  initPlatforms();
-}
+  function reset() {
+    // player starts at bottom of screen on a safe floor platform
+    px = (GAME_W - P_W) / 2;
+    py = 30;           // just above floor
+    vx = 0; vy = 0;
+    onGround = true;
+    cameraY = 0;
+    scrollStarted = false;
+    autoScrollSpeed = 0;
+    score = 0;
+    spawnCount = 0;
+    maxVGap = START_V_GAP;
+    maxHGap = START_H_GAP;
+    hud();
+    overlay.style.display = 'none';
+    running = true;
 
-function update() {
-  // Movement input
-  if (keys.left) vx = -moveSpeed;
-  else if (keys.right) vx = moveSpeed;
-  else vx = 0;
+    // clear old platforms
+    platforms.forEach(p => p.el.remove());
+    platforms = [];
 
-  // Jump
-  if (keys.jump && onGround) {
-    vy = jumpStrength;
-    onGround = false;
+    // floor (safe until scroll starts)
+    makePlatform((GAME_W - PLAT_W) / 2, 8, true);
+    // seed a vertical stack within easy reach
+    let y = 100;
+    for (let i = 0; i < 7; i++) {
+      const x = randRange(20, GAME_W - PLAT_W - 20);
+      makePlatform(x, y);
+      y += START_V_GAP;
+    }
+    // apply screen positions
+    platforms.forEach(setPlatformScreenPos);
+    setPlayerScreenPos();
   }
 
-  // Apply gravity
-  vy += gravity;
+  // Generate next platform above the current highest, within jumpable limits.
+  function spawnNextPlatform() {
+    // find highest platform Y
+    let highest = platforms.reduce((m, p) => Math.max(m, p.y), -Infinity);
 
-  // Move player
-  px += vx;
-  py += vy;
+    // vertical gap range (always reachable)
+    const minV = Math.min(100, maxVGap - 40);
+    const vGap = randRange(minV, maxVGap);
+    const newY = highest + vGap;
 
-  // Keep inside screen horizontally
-  if (px < 0) px = 0;
-  if (px > gameWidth - 50) px = gameWidth - 50;
+    // pick X near last spawned (or center if none)
+    const last = platforms
+      .filter(p => !p.isFloor)
+      .slice(-1)[0] || { x: (GAME_W - PLAT_W) / 2 };
+    let newX = last.x + randRange(-maxHGap, maxHGap);
+    newX = clamp(newX, 10, GAME_W - PLAT_W - 10);
 
-  // Collision check
-  onGround = false;
-  for (let p of platforms) {
-    if (
-      vy <= 0 &&
-      px + 50 > p.x &&
-      px < p.x + p.width &&
-      py > p.y &&
-      py < p.y + p.height &&
-      py - vy >= p.y + p.height
-    ) {
-      py = p.y + p.height;
-      vy = 0;
-      onGround = true;
+    const p = makePlatform(newX, newY);
+    setPlatformScreenPos(p);
+
+    // scoring (per spawn works fine for now)
+    score++;
+    hud();
+
+    spawnCount++;
+    if (spawnCount % DIFF_EVERY === 0) {
+      // ramp difficulty but clamp to safe caps
+      maxVGap = Math.min(MAX_V_GAP_CAP, maxVGap + V_GAP_STEP);
+      maxHGap = Math.min(MAX_H_GAP_CAP, maxHGap + H_GAP_STEP);
+      if (scrollStarted) autoScrollSpeed += SCROLL_SPEED_STEP;
     }
   }
 
-  // Scroll trigger
-  if (py - cameraY > gameHeight / 2) {
-    cameraY = py - gameHeight / 2;
-    scrollSpeed = 2; // Start scrolling
-  }
-
-  // Move platforms relative to camera
-  platforms.forEach(p => {
-    p.el.style.bottom = (p.y - cameraY) + "px";
+  // === input ===
+  addEventListener('keydown', e => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys.jump = true;
+    if (!running && e.code === 'KeyR') { reset(); }
+  });
+  addEventListener('keyup', e => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys.jump = false;
   });
 
-  // Remove off-screen platforms & spawn new ones
-  platforms = platforms.filter(p => p.y - cameraY > -20);
+  // === main update ===
+  let lastTime = performance.now();
+  function frame() {
+    if (!running) return;
+    requestAnimationFrame(frame);
 
-  while (platforms.length < 8) {
-    let highestY = Math.max(...platforms.map(p => p.y));
-    let newY = highestY + Math.random() * (maxVerticalGap - 100) + 100;
-    let newX = Math.max(
-      0,
-      Math.min(gameWidth - 120, platforms[platforms.length - 1].x + (Math.random() * (maxHorizontalGap * 2) - maxHorizontalGap))
-    );
-    createPlatform(newX, newY);
-    score++;
-    scoreDisplay.textContent = "Score: " + score;
+    // (fixed-ish timestep feel; simple per-frame step here)
+    const prevY = py;
 
-    // Increase difficulty
-    if (score % 10 === 0) {
-      maxVerticalGap += 5;
-      scrollSpeed += 0.2;
+    // horizontal control (air control kept for arcade feel)
+    let targetVX = 0;
+    if (keys.left) targetVX = -MOVE_SPEED;
+    if (keys.right) targetVX =  MOVE_SPEED;
+    vx = targetVX * (onGround ? 1 : AIR_CONTROL);
+    px = clamp(px + vx, 0, GAME_W - P_W);
+
+    // jump (only when grounded)
+    if (keys.jump && onGround) {
+      vy = JUMP_V;
+      onGround = false;
     }
+
+    // gravity and vertical integrate
+    vy += GRAV;
+    py += vy;
+
+    // trigger scroll when player passes halfway (first time only)
+    if (!scrollStarted && (py - cameraY) >= HALF_Y) {
+      scrollStarted = true;
+      autoScrollSpeed = BASE_SCROLL_SPEED; // start constant upward scroll
+    }
+
+    // apply auto-scroll once started (never stops)
+    if (scrollStarted) {
+      cameraY += autoScrollSpeed;
+      // deadly bottom once scrolling: if player below bottom edge -> dead
+      if ((py - cameraY) < 0 - P_H * 0.25) {
+        gameOver();
+        return;
+      }
+    } else {
+      // before scroll, floor is safe: clamp to floor top
+      const floor = platforms.find(p => p.isFloor);
+      const floorTop = floor.y + PLAT_H;
+      if (py < floorTop) {
+        py = floorTop;
+        vy = 0;
+        onGround = true;
+      }
+    }
+
+    // one-way platform landing (edge-cross check using prevY)
+    onGround = false;
+    if (vy <= 0) {
+      for (let i = 0; i < platforms.length; i++) {
+        const p = platforms[i];
+        const top = p.y + PLAT_H;
+        const left = p.x, right = p.x + PLAT_W;
+        const charLeft = px, charRight = px + P_W;
+        const overlapX = (charRight > left) && (charLeft < right);
+        const charBottomPrev = prevY + P_H;
+        const charBottomNow  = py + P_H;
+        const crossing = (charBottomPrev >= top) && (charBottomNow <= top);
+        // allow passing up through; land only from above
+        if (!p.isFloor && overlapX && crossing) {
+          py = top - P_H;
+          vy = 0;
+          onGround = true;
+          break;
+        }
+        // floor should also catch you before scroll starts (handled earlier)
+        if (!scrollStarted && p.isFloor && overlapX && crossing) {
+          py = top - P_H;
+          vy = 0;
+          onGround = true;
+          break;
+        }
+      }
+    }
+
+    // remove platforms that are far below the camera
+    platforms = platforms.filter(p => {
+      const onScreen = (p.y - cameraY) > -PLAT_H - 50;
+      if (!onScreen) p.el.remove();
+      return onScreen;
+    });
+
+    // ensure a pipeline of platforms ahead
+    const highestY = platforms.reduce((m, p) => Math.max(m, p.y), -Infinity);
+    // keep at least ~7 ahead of the camera viewport
+    while (highestY - cameraY < GAME_H * 1.5) {
+      spawnNextPlatform();
+    }
+
+    // write DOM positions
+    setPlayerScreenPos();
+    platforms.forEach(setPlatformScreenPos);
   }
 
-  // Game over
-  if (py - cameraY < -50) {
-    resetGame();
+  function gameOver() {
+    running = false;
+    overlay.style.display = 'flex';
   }
 
-  // Update player position
-  player.style.left = px + "px";
-  player.style.bottom = (py - cameraY) + "px";
-
-  requestAnimationFrame(update);
-}
-
-update();
+  reset();
+  requestAnimationFrame(frame);
+})();
 </script>
-
 </body>
 </html>
