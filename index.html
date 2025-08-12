@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tower Jump — Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tower Jump — Prototype (Assets wired)</title>
   <style>
     html, body { height: 100%; margin: 0; background: #0f1220; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #e5e7eb; }
     #ui { position: fixed; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center; z-index: 5; }
@@ -13,7 +13,7 @@
     canvas { display: block; width: 100vw; height: 100vh; }
     #overlay { position: fixed; inset: 0; display: none; place-items: center; background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.7)); z-index: 10; }
     #card { background: #12162a; border: 1px solid rgba(255,255,255,0.1); padding: 24px; border-radius: 16px; text-align: center; width: min(520px, 92vw); }
-    #card h1 { margin: 0 0 6px326646; font-size: 24px; }
+    #card h1 { margin: 0 0 6px; font-size: 24px; }
     #card p { margin: 4px 0; color: #cbd5e1; }
     #card .row { display: flex; justify-content: center; gap: 12px; margin-top: 12px; }
     #card button { padding: 10px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: #1a2040; color: #fff; font-weight: 700; cursor: pointer; }
@@ -48,6 +48,35 @@
   <canvas id="c"></canvas>
 
   <script>
+    // === ASSETS from your GitHub repo (raw URLs; spaces are URL-encoded) ===
+    const ASSETS = {
+      player: 'https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Seb%20Front%20300.png',
+      platform_grass: 'https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Grass%20platform%20300.png',
+      platform_ice:   'https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Ice%20platform%20300.png',
+      platform_rock:  'https://raw.githubusercontent.com/beuxlevi/jump-game-assets/main/Rock%20platform%20300.png'
+    };
+
+    // Physics per platform surface
+    const SURFACE = {
+      grass: { label: 'Grass', friction: 1.0 },   // normal
+      ice:   { label: 'Ice',   friction: 0.20 },  // slippy
+      rock:  { label: 'Rock',  friction: 2.50 }   // sticky
+    };
+
+    // Loader
+    function loadImage(src) {
+      return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+    }
+
+    const SPRITES = { player: null, grass: null, ice: null, rock: null };
+    Promise.all([
+      loadImage(ASSETS.player).then(img => SPRITES.player = img).catch(()=>{}),
+      loadImage(ASSETS.platform_grass).then(img => SPRITES.grass = img).catch(()=>{}),
+      loadImage(ASSETS.platform_ice).then(img => SPRITES.ice = img).catch(()=>{}),
+      loadImage(ASSETS.platform_rock).then(img => SPRITES.rock = img).catch(()=>{})
+    ]).then(()=>{ /* sprites ready (or some missing, we fallback) */ });
+
+    // === Canvas + world setup ===
     const canvas = document.getElementById('c');
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
@@ -66,91 +95,75 @@
       H = canvas.height = window.innerHeight * devicePixelRatio;
       ctx.setTransform(1,0,0,1,0,0);
       ctx.scale(devicePixelRatio, devicePixelRatio);
-      // Show mobile controls for narrow screens
       mobileControls.style.display = window.innerWidth < 820 ? 'flex' : 'none';
     }
     window.addEventListener('resize', resize);
     resize();
 
     const rand = (min, max) => Math.random() * (max - min) + min;
-    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
     const G = 2400; // gravity px/s^2
     const JUMP_V = -1050; // auto-bounce velocity
     const MOVE_ACCEL = 2600;
-    const MOVE_DRAG = 0.0016;
-    const MAX_SPEED_X = 480;
+    const AIR_DRAG = 0.0016; // base air drag factor
+    const MAX_SPEED_X = 520;
 
-    const WORLD = {
-      cameraY: 0, // top-left world y shown on screen
-      highestGeneratedY: 0, // smallest y (most negative) generated so far
-      startY: 0,
-      best: 0,
-      running: true,
-    };
+    const WORLD = { cameraY: 0, highestGeneratedY: 0, startY: 0, best: 0, running: true };
 
-    const player = {
-      x: 0, y: 0, w: 36, h: 44,
-      vx: 0, vy: 0,
-      color: '#d1fae5',
-      lastBottom: 0,
-    };
+    const player = { x: 0, y: 0, w: 40, h: 48, vx: 0, vy: 0, lastBottom: 0, grounded: false, groundSurface: 'grass' };
 
     const platforms = [];
 
     function reset() {
       platforms.length = 0;
-      WORLD.cameraY = 0;
-      WORLD.highestGeneratedY = 0;
-      WORLD.startY = 0;
-      WORLD.running = true;
+      WORLD.cameraY = 0; WORLD.highestGeneratedY = 0; WORLD.startY = 0; WORLD.running = true;
 
-      // Initialize player roughly mid-bottom
       player.x = window.innerWidth / 2 - player.w / 2;
       player.y = window.innerHeight - 140;
-      player.vx = 0; player.vy = -600; // initial upward kick
+      player.vx = 0; player.vy = -600; player.grounded = false;
 
-      // Base platform
-      addPlatform(window.innerWidth/2 - 120, window.innerHeight - 80, 240, 20, 'solid');
+      addPlatform(window.innerWidth/2 - 120, window.innerHeight - 80, 240, 24, 'grass'); // base grass
 
-      // Generate upwards a bit
       WORLD.highestGeneratedY = window.innerHeight - 200;
-      while (WORLD.highestGeneratedY > -2000) {
-        generateNextBand();
-      }
+      while (WORLD.highestGeneratedY > -2000) generateNextBand();
 
       overlay.style.display = 'none';
     }
 
-    function addPlatform(x, y, w, h, type='solid', meta={}) {
-      platforms.push({ x, y, w, h, type, t: Math.random()*Math.PI*2, ...meta });
+    function addPlatform(x, y, w, h, surface = 'grass', meta = {}) {
+      platforms.push({ x, y, w, h, surface, t: Math.random()*Math.PI*2, moving: !!meta.moving, ox: x, range: meta.range||0, speed: meta.speed||0, breakable: !!meta.breakable });
+    }
+
+    function pickSurface(depth) {
+      // Simple weighted mix; tweak if you want more/less of each as you climb
+      const r = Math.random();
+      if (r < 0.55) return 'grass';           // 55%
+      if (r < 0.80) return 'ice';             // 25%
+      return 'rock';                           // 20%
     }
 
     function generateNextBand() {
-      // Generate a vertical band of platforms above current highestGeneratedY
-      const bandHeight = 400; // px
+      const bandHeight = 420;
       const targetTop = WORLD.highestGeneratedY - bandHeight;
-      const density = 5 + Math.floor(rand(0, 2));
+      const density = 6 + Math.floor(Math.random()*2);
 
       for (let i = 0; i < density; i++) {
-        const y = rand(targetTop, WORLD.highestGeneratedY - 40);
-        const w = rand(90, 180);
-        const h = 18;
+        const y = rand(targetTop, WORLD.highestGeneratedY - 50);
+        const w = rand(120, 220);
+        const h = 26;
         const x = rand(24, window.innerWidth - w - 24);
-        // chance for a moving platform higher up
-        const depth = -y; // higher = deeper (more negative y)
-        const movingChance = clamp((depth - 600) / 3000, 0, 0.35);
-        const breakChance = clamp((depth - 1000) / 4500, 0, 0.25);
+        const depth = -y;
+        const movingChance = Math.min(Math.max((depth - 800)/3000, 0), 0.35);
+        const breakChance  = Math.min(Math.max((depth - 1200)/4500, 0), 0.25);
+        const surface = pickSurface(depth);
 
         const r = Math.random();
         if (r < movingChance) {
-          const range = rand(50, 160);
-          const speed = rand(40, 90);
-          addPlatform(x, y, w, h, 'moving', { ox: x, range, speed });
+          addPlatform(x, y, w, h, surface, { moving: true, range: rand(60, 160), speed: rand(40, 90) });
         } else if (r < movingChance + breakChance) {
-          addPlatform(x, y, w, h, 'break');
+          addPlatform(x, y, w, h, surface, { breakable: true });
         } else {
-          addPlatform(x, y, w, h, 'solid');
+          addPlatform(x, y, w, h, surface);
         }
       }
 
@@ -159,31 +172,23 @@
 
     // Input
     const keys = new Set();
-    window.addEventListener('keydown', (e) => {
-      keys.add(e.key);
-      if (e.key === 'r' || e.key === 'R') reset();
-    });
+    window.addEventListener('keydown', (e) => { keys.add(e.key); if (e.key === 'r' || e.key === 'R') reset(); });
     window.addEventListener('keyup', (e) => keys.delete(e.key));
 
     let touchLeft = false, touchRight = false;
-    leftBtn.addEventListener('touchstart', e => { e.preventDefault(); touchLeft = true; });
-    leftBtn.addEventListener('touchend', e => { e.preventDefault(); touchLeft = false; });
-    rightBtn.addEventListener('touchstart', e => { e.preventDefault(); touchRight = true; });
-    rightBtn.addEventListener('touchend', e => { e.preventDefault(); touchRight = false; });
+    leftBtn?.addEventListener('touchstart', e => { e.preventDefault(); touchLeft = true; });
+    leftBtn?.addEventListener('touchend', e => { e.preventDefault(); touchLeft = false; });
+    rightBtn?.addEventListener('touchstart', e => { e.preventDefault(); touchRight = true; });
+    rightBtn?.addEventListener('touchend', e => { e.preventDefault(); touchRight = false; });
 
     canvas.addEventListener('click', () => { if (!WORLD.running) reset(); });
     restartBtn.addEventListener('click', reset);
 
     let last = performance.now();
-
-    function step(ts) {
-      const dt = Math.min(0.02, (ts - last) / 1000);
-      last = ts;
-
-      update(dt);
-      draw();
-      requestAnimationFrame(step);
-    }
+    requestAnimationFrame(function step(ts){
+      const dt = Math.min(0.02, (ts - last) / 1000); last = ts;
+      update(dt); draw(); requestAnimationFrame(step);
+    });
 
     function update(dt) {
       if (!WORLD.running) return;
@@ -191,14 +196,20 @@
       const left = keys.has('ArrowLeft') || keys.has('a') || touchLeft;
       const right = keys.has('ArrowRight') || keys.has('d') || touchRight;
 
-      // Horizontal
-      let ax = 0;
-      if (left) ax -= MOVE_ACCEL;
-      if (right) ax += MOVE_ACCEL;
-      player.vx += ax * dt;
-      // Drag
-      player.vx -= player.vx * MOVE_DRAG;
-      player.vx = clamp(player.vx, -MAX_SPEED_X, MAX_SPEED_X);
+      // Horizontal accel
+      let ax = 0; if (left) ax -= MOVE_ACCEL; if (right) ax += MOVE_ACCEL; player.vx += ax * dt;
+
+      // Air drag always
+      player.vx -= player.vx * AIR_DRAG;
+
+      // Extra ground friction by surface when grounded
+      if (player.grounded) {
+        const mu = SURFACE[player.groundSurface]?.friction ?? 1.0; // coefficient
+        // simple proportional friction; bigger mu = stronger slowdown (sticky)
+        player.vx -= player.vx * mu * 6 * dt; // tune 6 for feel
+      }
+
+      player.vx = Math.max(-MAX_SPEED_X, Math.min(MAX_SPEED_X, player.vx));
 
       // Vertical
       player.vy += G * dt;
@@ -207,139 +218,94 @@
       player.x += player.vx * dt;
       player.y += player.vy * dt;
 
-      // Wrap / clamp horizontally
+      // Horizontal wrap
       if (player.x + player.w < 0) player.x = window.innerWidth - 1;
       if (player.x > window.innerWidth) player.x = -player.w + 1;
 
-      // Platforms update (moving etc)
+      // Move platforms
       for (const p of platforms) {
-        if (p.type === 'moving') {
-          p.t += dt;
-          p.x = p.ox + Math.sin(p.t * p.speed / 30) * p.range;
-        }
+        if (p.moving) { p.t += dt; p.x = p.ox + Math.sin(p.t * p.speed / 30) * p.range; }
       }
 
-      // Collision: only when falling and crossing from above
-      const prevBottom = player.lastBottom;
-      player.lastBottom = player.y + player.h;
-
+      // Collisions
+      const prevBottom = player.lastBottom; player.lastBottom = player.y + player.h; let justLanded = false;
       if (player.vy > 0) {
         for (const p of platforms) {
+          if (p.breakable && p._gone) continue;
           const wasAbove = prevBottom <= p.y + 1;
-          if (!wasAbove) continue; // ensure landing from above
-          if (
-            player.x < p.x + p.w &&
-            player.x + player.w > p.x &&
-            player.y + player.h > p.y &&
-            player.y + player.h < p.y + p.h + 20 // small tolerance
-          ) {
+          if (!wasAbove) continue;
+          if (player.x < p.x + p.w && player.x + player.w > p.x && player.y + player.h > p.y && player.y + player.h < p.y + p.h + 20) {
             // Land
-            player.y = p.y - player.h;
-            player.vy = JUMP_V; // auto-bounce jump
-            if (p.type === 'break') p.type = 'gone';
+            player.y = p.y - player.h; player.vy = JUMP_V; justLanded = true; player.grounded = true; player.groundSurface = p.surface;
+            if (p.breakable) p._gone = true; // mark for removal after bounce
           }
         }
       }
+      if (!justLanded) player.grounded = false;
 
       // Remove broken platforms
-      for (let i = platforms.length - 1; i >= 0; i--) {
-        if (platforms[i].type === 'gone') platforms.splice(i, 1);
-      }
+      for (let i = platforms.length - 1; i >= 0; i--) if (platforms[i]._gone) platforms.splice(i, 1);
 
-      // Camera follows player upward (never moves down)
+      // Camera (locks to highest point reached)
       const targetCam = Math.min(WORLD.cameraY, player.y - window.innerHeight * 0.45);
       WORLD.cameraY = targetCam;
 
-      // Score (meters as pixels/100)
+      // Score
       const heightClimbed = Math.max(0, Math.floor((-(player.y - WORLD.startY)) / 100));
       scoreEl.textContent = `Score: ${heightClimbed}`;
-      if (heightClimbed > WORLD.best) {
-        WORLD.best = heightClimbed;
-        bestEl.textContent = `Best: ${WORLD.best}`;
-      }
+      if (heightClimbed > WORLD.best) { WORLD.best = heightClimbed; bestEl.textContent = `Best: ${WORLD.best}`; }
 
-      // Generate more platforms above as needed
-      while (WORLD.highestGeneratedY > WORLD.cameraY - 1200) {
-        generateNextBand();
-      }
+      // Generate & cull
+      while (WORLD.highestGeneratedY > WORLD.cameraY - 1200) generateNextBand();
+      for (let i = platforms.length - 1; i >= 0; i--) if (platforms[i].y - WORLD.cameraY > window.innerHeight + 400) platforms.splice(i, 1);
 
-      // Cull platforms far below
-      for (let i = platforms.length - 1; i >= 0; i--) {
-        if (platforms[i].y - WORLD.cameraY > window.innerHeight + 400) platforms.splice(i, 1);
-      }
-
-      // Death: fell below screen bottom
+      // Death
       if (player.y - WORLD.cameraY > window.innerHeight + 120) {
-        WORLD.running = false;
-        finalScoreEl.textContent = `You reached ${WORLD.best} m`;
-        overlay.style.display = 'grid';
+        WORLD.running = false; finalScoreEl.textContent = `You reached ${WORLD.best} m`; overlay.style.display = 'grid';
       }
     }
 
     function drawBG() {
-      // Gradient sky
+      // Gradient sky fallback
       const g = ctx.createLinearGradient(0, 0, 0, window.innerHeight);
-      g.addColorStop(0, '#0b1022');
-      g.addColorStop(1, '#1a1f3f');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-
-      // Subtle parallax stripes
-      ctx.globalAlpha = 0.10;
-      const stripeH = 80;
-      const offs = (WORLD.cameraY * 0.15) % stripeH;
-      ctx.fillStyle = '#0f1430';
-      for (let y = -stripeH; y < window.innerHeight + stripeH; y += stripeH) {
-        ctx.fillRect(0, Math.floor(y + offs), window.innerWidth, stripeH * 0.5);
-      }
+      g.addColorStop(0, '#0b1022'); g.addColorStop(1, '#1a1f3f');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      // Parallax stripes
+      ctx.globalAlpha = 0.10; const stripeH = 80; const offs = (WORLD.cameraY * 0.15) % stripeH; ctx.fillStyle = '#0f1430';
+      for (let y = -stripeH; y < window.innerHeight + stripeH; y += stripeH) ctx.fillRect(0, Math.floor(y + offs), window.innerWidth, stripeH * 0.5);
       ctx.globalAlpha = 1;
     }
 
     function draw() {
-      ctx.setTransform(1,0,0,1,0,0);
-      drawBG();
-
-      // World transform (camera)
+      ctx.setTransform(1,0,0,1,0,0); drawBG();
       ctx.translate(0, -WORLD.cameraY);
 
-      // Draw platforms
+      // Platforms
       for (const p of platforms) {
-        if (p.type === 'gone') continue;
-        // Style by type
-        if (p.type === 'solid') ctx.fillStyle = '#7dd3fc';
-        else if (p.type === 'moving') ctx.fillStyle = '#a78bfa';
-        else if (p.type === 'break') ctx.fillStyle = '#fca5a5';
-        else ctx.fillStyle = '#334155';
-
-        // Soft shadow
-        ctx.save();
-        ctx.globalAlpha = 0.25;
-        ctx.fillRect(p.x + 4, p.y + 6, p.w, p.h);
-        ctx.restore();
-
-        // Platform
-        ctx.fillRect(p.x, p.y, p.w, p.h);
+        const img = SPRITES[p.surface];
+        if (img) {
+          // soft shadow
+          ctx.save(); ctx.globalAlpha = 0.25; ctx.drawImage(img, p.x + 4, p.y + 6, p.w, p.h); ctx.restore();
+          ctx.drawImage(img, p.x, p.y, p.w, p.h);
+        } else {
+          // fallback colours
+          const col = p.surface === 'grass' ? '#7dd3fc' : p.surface === 'ice' ? '#a5f3fc' : '#fca5a5';
+          ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(p.x + 4, p.y + 6, p.w, p.h); ctx.restore();
+          ctx.fillStyle = col; ctx.fillRect(p.x, p.y, p.w, p.h);
+        }
       }
 
-      // Draw player
-      ctx.save();
-      // Shadow
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(player.x + 4, player.y + 8, player.w, player.h);
-      ctx.restore();
-      // Body
-      ctx.fillStyle = player.color;
-      ctx.fillRect(player.x, player.y, player.w, player.h);
-
-      // Eyes (tiny)
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(player.x + 10, player.y + 14, 4, 4);
-      ctx.fillRect(player.x + 22, player.y + 14, 4, 4);
+      // Player
+      if (SPRITES.player) {
+        ctx.save(); ctx.globalAlpha = 0.25; ctx.drawImage(SPRITES.player, player.x + 4, player.y + 8, player.w, player.h); ctx.restore();
+        ctx.drawImage(SPRITES.player, player.x, player.y, player.w, player.h);
+      } else {
+        ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(player.x + 4, player.y + 8, player.w, player.h); ctx.restore();
+        ctx.fillStyle = '#d1fae5'; ctx.fillRect(player.x, player.y, player.w, player.h);
+      }
     }
 
     reset();
-    requestAnimationFrame(step);
   </script>
 </body>
 </html>
